@@ -32,8 +32,8 @@ function BirdStateMachine.new(bird)
         groundTargetRadius = 8.0,      -- Pick targets within 8m of plow area
         upwardHeight = 10.0,            -- Base height to fly up (will add 0-5m randomness)
         downwardTargetRadius = 5.0,     -- Pick targets within 5m when going down
-        minGroundHeight = 0.3,          -- Minimum height above ground
-        maxGroundHeight = 1.0,          -- Maximum height above ground when feeding
+        minGroundHeight = 0.01,          -- Minimum height above ground
+        maxGroundHeight = 0.02,          -- Maximum height above ground when feeding
     }
     
     print(string.format("[BirdStateMachine] Created in state: %s", self.currentState))
@@ -105,13 +105,6 @@ end
 -- @param dt: Delta time in milliseconds
 ---
 function BirdStateMachine:update(dt)
-    -- Debug despawning state
-    if self.currentState == BirdStateMachine.STATE_DESPAWNING and math.random() < 0.05 then
-        local moving = self.bird and self.bird:getIsMoving() or false
-        print(string.format("[BirdStateMachine] Despawning state update: birdMoving=%s timeInState=%.1fs",
-            tostring(moving), self:getTimeInState() / 1000))
-    end
-    
     if self.currentState == BirdStateMachine.STATE_SPAWNING then
         self:updateSpawningState(dt)
     elseif self.currentState == BirdStateMachine.STATE_APPROACHING_PLOW then
@@ -147,6 +140,11 @@ function BirdStateMachine:enterApproachingPlowState()
     if not self.bird or not self.bird.hotspot then
         print("[BirdStateMachine] ERROR: No bird or hotspot for approaching state")
         return
+    end
+    
+    -- Set active flying animation
+    if self.bird.setAnimation then
+        self.bird:setAnimation(SimpleBirdDirect.ANIM_FLY.opcode, SimpleBirdDirect.ANIM_FLY.speed)
     end
     
     -- Get hotspot position (near the plow)
@@ -193,6 +191,11 @@ function BirdStateMachine:enterFeedingGroundState()
     if not self.bird or not self.bird.hotspot then
         print("[BirdStateMachine] ERROR: No bird or hotspot for feeding ground state")
         return
+    end
+    
+    -- Set landing/eating animation when reaching ground
+    if self.bird.setAnimation then
+        self.bird:setAnimation(SimpleBirdDirect.ANIM_IDLE_EAT.opcode, SimpleBirdDirect.ANIM_IDLE_EAT.speed)
     end
     
     local hotspot = self.bird.hotspot
@@ -251,6 +254,11 @@ end
 function BirdStateMachine:enterFeedingUpState()
     local currentX, currentY, currentZ = self.bird:getCurrentPosition()
     
+    -- Set takeoff/fly up animation
+    if self.bird.setAnimation then
+        self.bird:setAnimation(SimpleBirdDirect.ANIM_FLY_UP.opcode, SimpleBirdDirect.ANIM_FLY_UP.speed)
+    end
+    
     -- Fly straight up from current position (with slight horizontal drift for realism)
     local upHeight = self.feedingConfig.upwardHeight + math.random() * 5.0  -- 10-15m
     local driftX = (math.random() - 0.5) * 3.0  -- Up to 1.5m drift in X
@@ -292,6 +300,11 @@ function BirdStateMachine:enterFeedingDownState()
     if not self.bird or not self.bird.hotspot then
         print("[BirdStateMachine] ERROR: No bird or hotspot for feeding down state")
         return
+    end
+    
+    -- Set downward flying animation (with flapping)
+    if self.bird.setAnimation then
+        self.bird:setAnimation(SimpleBirdDirect.ANIM_FLY_DOWN_FLAP.opcode, SimpleBirdDirect.ANIM_FLY_DOWN_FLAP.speed)
     end
     
     local hotspot = self.bird.hotspot
@@ -339,6 +352,11 @@ end
 function BirdStateMachine:enterDespawningState()
     local currentX, currentY, currentZ = self.bird:getCurrentPosition()
     
+    -- Set fast active flying animation for fleeing
+    if self.bird.setAnimation then
+        self.bird:setAnimation(SimpleBirdDirect.ANIM_FLY.opcode, SimpleBirdDirect.ANIM_FLY.speed)
+    end
+    
     -- Pick a random direction
     local randomAngle = math.random() * math.pi * 2
     local randomDistance = 40.0 + math.random() * 30.0  -- 40-70m away
@@ -356,7 +374,7 @@ function BirdStateMachine:enterDespawningState()
     print(string.format("[BirdStateMachine] Despawning: flying from (%.1f, %.1f, %.1f) to (%.1f, %.1f, %.1f)", 
         currentX, currentY, currentZ, targetX, targetY, targetZ))
     
-    -- TEMP: Use straight line instead of curved to test
+    -- Use straight line for fast despawn
     self.bird:moveToTarget(targetX, targetY, targetZ, 16.0)  -- Fast despawn
     
     -- Mark bird as despawning

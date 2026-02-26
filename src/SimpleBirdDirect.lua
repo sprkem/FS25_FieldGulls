@@ -38,8 +38,12 @@ function SimpleBirdDirect.new(x, y, z, hotspot)
     
     -- Visual node (will be loaded async)
     self.visualNode = nil
+    self.shaderNode = nil
     self.isLoading = false
     self.loadRequestId = nil
+    
+    -- Animation offset for variety (0-1 random value)
+    self.animationOffset = math.random()
     
     -- Initialize state machine
     self.stateMachine = BirdStateMachine.new(self)
@@ -84,8 +88,10 @@ function SimpleBirdDirect:onCrowModelLoaded(i3dNode, failedReason, args)
     end
     
     if i3dNode and i3dNode ~= 0 then
-        -- Get the first child (the actual crow mesh)
-        local crowNode = getChildAt(i3dNode, 0)
+        -- Get the visual node and shader node from the loaded i3d (before we modify it)
+        local crowNode = I3DUtil.indexToObject(i3dNode, "0")  -- Index "0" is the crow mesh
+        local shaderNode = I3DUtil.indexToObject(i3dNode, "0")  -- Shader node is the same as visual node
+        
         if crowNode and crowNode ~= 0 then
             -- Link to our root node
             link(self.rootNode, crowNode)
@@ -96,6 +102,23 @@ function SimpleBirdDirect:onCrowModelLoaded(i3dNode, failedReason, args)
             setScale(crowNode, 0.8, 0.8, 0.8)
             
             self.visualNode = crowNode
+            self.shaderNode = shaderNode
+            
+            -- Setup initial fly animation using shader parameters
+            if self.shaderNode ~= nil then
+                -- Set animation offset first (required for animation system)
+                setShaderParameter(self.shaderNode, "animOffset", self.animationOffset, 0, 0, 0, false)
+                
+                -- Start with active fly animation (opcode 1, speed 4.0)
+                self:setAnimation(1, 4.0)
+                
+                if math.random() < 0.1 then
+                    print(string.format("[SimpleBirdDirect] Fly animation setup with offset %.2f", self.animationOffset))
+                end
+            else
+                print("[SimpleBirdDirect] WARNING: Shader node not found in crow model")
+            end
+            
             print("[SimpleBirdDirect] Crow model loaded successfully")
         else
             print("[SimpleBirdDirect] ERROR: Could not get crow mesh from i3d")
@@ -107,6 +130,36 @@ end
 function SimpleBirdDirect:getCurrentPosition()
     return getWorldTranslation(self.rootNode)
 end
+
+---
+-- Set animation using shader parameters
+-- Based on crow.xml animation definitions
+-- @param opcode: Animation opcode (0-6)
+-- @param speed: Animation speed
+---
+function SimpleBirdDirect:setAnimation(opcode, speed)
+    if not self.shaderNode then
+        return
+    end
+    
+    -- Set animation opcode
+    setShaderParameter(self.shaderNode, "indicesAndBlend", opcode, 0, 0, 0, false)
+    -- Set animation speed
+    setShaderParameter(self.shaderNode, "speeds", speed, 0, 0, 0, false)
+    -- Animation offset is set once at load, doesn't change
+end
+
+---
+-- Animation presets from crow.xml
+---
+SimpleBirdDirect.ANIM_FLY = {opcode = 1, speed = 4.0}           -- Active flying/flapping
+SimpleBirdDirect.ANIM_FLY_GLIDE = {opcode = 0, speed = 0.4}     -- Slow gliding
+SimpleBirdDirect.ANIM_FLY_UP = {opcode = 1, speed = 4.0}        -- Flying upward
+SimpleBirdDirect.ANIM_FLY_DOWN = {opcode = 0, speed = 0.4}      -- Gliding down
+SimpleBirdDirect.ANIM_FLY_DOWN_FLAP = {opcode = 1, speed = 4.0} -- Descending with flapping
+SimpleBirdDirect.ANIM_LAND = {opcode = 2, speed = 3.0}          -- Landing
+SimpleBirdDirect.ANIM_TAKE_OFF = {opcode = 3, speed = 4.0}      -- Taking off
+SimpleBirdDirect.ANIM_IDLE_EAT = {opcode = 5, speed = 1.0}      -- Eating on ground
 
 ---
 -- Move to target using straight line (legacy method)
@@ -169,12 +222,6 @@ function SimpleBirdDirect:update(dt)
         self.stateMachine:update(dt)
     end
     
-    -- Debug despawning birds
-    if self.isDespawning and math.random() < 0.1 then
-        print(string.format("[SimpleBirdDirect] Despawning update: hasTarget=%s isMoving=%s usingCurved=%s hasCurvedPath=%s",
-            tostring(self.hasTarget), tostring(self.isMoving), tostring(self.usingCurvedPath), tostring(self.curvedPath ~= nil)))
-    end
-    
     if not self.hasTarget or not self.isMoving then
         return
     end
@@ -183,12 +230,6 @@ function SimpleBirdDirect:update(dt)
     
     -- Movement along curved path
     if self.usingCurvedPath and self.curvedPath then
-        -- Debug for despawning birds
-        if self.isDespawning and math.random() < 0.05 then
-            print(string.format("[SimpleBirdDirect] Despawning curved movement: pathDist=%.1f totalLen=%.1f speed=%.1f",
-                self.pathDistance, self.curvedPath:getTotalLength(), self.moveSpeed))
-        end
-        
         -- Calculate distance to move this frame
         local moveDistance = self.moveSpeed * dtSeconds
         self.pathDistance = self.pathDistance + moveDistance

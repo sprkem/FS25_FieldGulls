@@ -94,15 +94,16 @@ function CurvedPathPlanner:calculateControlPoints(curvature)
     local offsetZ = math.sin(curveAngle) * perpZ * curveOffset
     local offsetY = (math.random() - 0.5) * distance * curvature * 0.3  -- Slight vertical curve variation
     
-    -- Control point 1: 1/3 along path, offset perpendicular
+    -- Control point 1: 1/3 along path, offset perpendicular for initial curve
     self.control1X = self.startX + dx * 0.33 + offsetX
     self.control1Y = self.startY + dy * 0.33 + offsetY
     self.control1Z = self.startZ + dz * 0.33 + offsetZ
     
-    -- Control point 2: 2/3 along path, offset perpendicular (opposite side for S-curve)
-    self.control2X = self.startX + dx * 0.67 - offsetX * 0.5
-    self.control2Y = self.startY + dy * 0.67 - offsetY * 0.5
-    self.control2Z = self.startZ + dz * 0.67 - offsetZ * 0.5
+    -- Control point 2: Much closer to end (90% of path) with minimal offset for straighter approach
+    -- This makes the end of the curve much gentler
+    self.control2X = self.startX + dx * 0.90 - offsetX * 0.1
+    self.control2Y = self.startY + dy * 0.90 - offsetY * 0.1
+    self.control2Z = self.startZ + dz * 0.90 - offsetZ * 0.1
     
     if math.random() < 0.05 then
         print(string.format("[CurvedPathPlanner] Created curve: start=(%.1f,%.1f,%.1f) end=(%.1f,%.1f,%.1f) curve=%.2f", 
