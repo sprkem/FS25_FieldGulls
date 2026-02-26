@@ -6,6 +6,7 @@
 
 SimpleBirdDirect = {}
 local SimpleBirdDirect_mt = Class(SimpleBirdDirect)
+SimpleBirdDirect.dir = g_currentModDirectory
 
 ---
 -- Load bird attributes from XML file (similar to WildlifeInstanceGraphics.loadAttributesTable)
@@ -18,7 +19,10 @@ function SimpleBirdDirect.loadAttributesFromXML(xmlFile, key)
         filename = getXMLString(xmlFile, key .. ".asset#filename"),
         nodeIndex = getXMLString(xmlFile, key .. ".asset#node") or "0",
         shaderNodeIndex = getXMLString(xmlFile, key .. ".animation#shaderNode") or "0",
-        animations = {}
+        animations = {},
+        -- Behavior settings (with defaults)
+        groundIdleTimeMin = getXMLFloat(xmlFile, key .. ".behavior#groundIdleTimeMin") or 0.5,
+        groundIdleTimeMax = getXMLFloat(xmlFile, key .. ".behavior#groundIdleTimeMax") or 2.0
     }
 
     -- Load all animation definitions
@@ -83,11 +87,18 @@ function SimpleBirdDirect.new(x, y, z, hotspot)
     self.animationOffset = math.random()
 
     -- Load bird attributes from XML (no schema needed with old-style API)
-    local xmlFilename = Utils.getFilename("data/animals/wildlife/species/crow.xml", g_currentMission.baseDirectory)
-    local xmlFile = loadXMLFile("WildlifespeciesTemp", xmlFilename)
+    -- Use our mod's XML files from the data directory
+    local xmlFilename = Utils.getFilename("data/stork.xml", SimpleBirdDirect.dir)
+    local xmlFile = loadXMLFile("BirdSpeciesTemp", xmlFilename)
 
-    self.attributes = SimpleBirdDirect.loadAttributesFromXML(xmlFile, "species")
-    delete(xmlFile)
+    if xmlFile and xmlFile ~= 0 then
+        self.attributes = SimpleBirdDirect.loadAttributesFromXML(xmlFile, "species")
+        delete(xmlFile)
+    else
+        print("Error: Failed to load bird species XML from: " .. tostring(xmlFilename))
+        self.attributes = nil
+        return nil
+    end
 
     -- Initialize state machine
     self.stateMachine = BirdStateMachine.new(self)
@@ -228,16 +239,10 @@ end
 -- Animation name constants (for convenience)
 -- Use bird:setAnimationByName() with these
 ---
-SimpleBirdDirect.ANIM_FLY_GLIDE = "flyGlide"            -- Slow gliding
 SimpleBirdDirect.ANIM_FLY = "fly"                       -- Active flying/flapping
 SimpleBirdDirect.ANIM_FLY_UP = "flyUp"                  -- Flying upward
-SimpleBirdDirect.ANIM_FLY_DOWN = "flyDown"              -- Gliding down
 SimpleBirdDirect.ANIM_FLY_DOWN_FLAP = "flyDownFlapping" -- Descending with flapping
-SimpleBirdDirect.ANIM_LAND = "land"                     -- Landing
-SimpleBirdDirect.ANIM_TAKE_OFF = "takeOff"              -- Taking off
-SimpleBirdDirect.ANIM_IDLE_WALK = "idleWalk"            -- Walking on ground
 SimpleBirdDirect.ANIM_IDLE_EAT = "idleEat"              -- Eating on ground
-SimpleBirdDirect.ANIM_IDLE_ATTENTION = "idleAttention"  -- Alert/looking around
 
 ---
 -- Move to target using straight line (legacy method)

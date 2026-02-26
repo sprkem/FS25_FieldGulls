@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<species>
+    <name>stork</name>
+    <asset filename="dataS/character/animals/wild/stork/stork.i3d" node="0" />
+    <animation shaderNode="0">
+        <animation stateName="fly" opcode="1" speed="1.5" transitionTime="0.15" />
+        <animation stateName="flyUp" opcode="1" speed="1.5" transitionTime="0.15" />
+        <animation stateName="flyDownFlapping" opcode="1" speed="1.5" transitionTime="0.15" />
+        <animation stateName="idleEat" opcode="2" speed="1" transitionTime="0.15" />
+    </animation>
+    
+    <!-- Behavior configuration -->
+    <behavior groundIdleTimeMin="0.1" groundIdleTimeMax="0.2" />
+</species>

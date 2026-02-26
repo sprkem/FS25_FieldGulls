@@ -197,13 +197,17 @@ function BirdStateMachine:enterFeedingGroundState()
 end
 
 function BirdStateMachine:updateFeedingGroundState(dt)
-    -- Stay on ground briefly (0.5-2 seconds) before flying up again
+    -- Stay on ground briefly before flying up again (time configured per species in XML)
     if not self.stateData.groundStartTime then
         self.stateData.groundStartTime = g_time
     end
 
     local timeOnGround = g_time - self.stateData.groundStartTime
-    local requiredGroundTime = 500 + math.random() * 1500 -- 0.5-2 seconds
+    
+    -- Get idle time from bird attributes (loaded from XML)
+    local minTime = (self.bird.attributes.groundIdleTimeMin or 0.5) * 1000  -- Convert seconds to milliseconds
+    local maxTime = (self.bird.attributes.groundIdleTimeMax or 2.0) * 1000
+    local requiredGroundTime = minTime + math.random() * (maxTime - minTime)
 
     if timeOnGround >= requiredGroundTime then
         -- Fly upward again
@@ -310,8 +314,12 @@ function BirdStateMachine:enterFeedingDownState()
     self.stateData.targetY = targetY
     self.stateData.targetZ = targetZ
 
-    -- Set bird target with straight path and high speed for steep diving
-    self.bird:moveToTarget(targetX, targetY, targetZ, 15.0) -- Fast dive speed for steep angles
+    -- Set bird target with curved path for natural diving
+    if self.bird.moveToCurved then
+        self.bird:moveToCurved(targetX, targetY, targetZ, 12.0) -- Medium-fast dive with curve
+    else
+        self.bird:moveToTarget(targetX, targetY, targetZ, 15.0) -- Fallback to straight line
+    end
 end
 
 function BirdStateMachine:updateFeedingDownState(dt)
