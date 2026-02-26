@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<modDesc descVersion="106">
+    <author>Ozz</author>
+    <version>1.0.0.0</version>
+    <iconFilename>icon_MoistureSystem.dds</iconFilename>
+    <title>
+        <en>Following Birds</en>
+        <de>Folgende Vögel</de>
+        <fr>Oiseaux Suivants</fr>
+    </title>
+    <description>
+        <en><![CDATA[Following Birds
+
+Birds will follow plows and other implements while they are working.
+Crows spawn behind the plow and fly to the freshly worked soil.
+
+Features:
+- Birds follow plows while working
+- Up to 10 birds per plow
+- Birds scatter and land in worked areas
+- Natural despawning after work stops
+
+]]>
+        </en>
+        <de><![CDATA[Folgende Vögel
+
+Vögel folgen Pflügen und anderen Geräten während der Arbeit.
+
+]]>
+        </de>
+        <fr><![CDATA[Oiseaux Suivants
+
+Les oiseaux suivent les charrues pendant qu'elles travaillent.
+
+]]>
+        </fr>
+    </description>
+    <extraSourceFiles>
+        <sourceFile filename="src/PlowBirdHotspot.lua"/>
+        <sourceFile filename="src/PlowBirdsExtension.lua"/>
+    </extraSourceFiles>
+    <multiplayer supported="true"/>
+</modDesc>
