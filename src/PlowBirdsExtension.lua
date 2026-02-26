@@ -7,8 +7,8 @@
 PlowBirdsExtension = {}
 
 -- Configuration
-PlowBirdsExtension.DESPAWN_DELAY = 10000  -- 10 seconds in milliseconds
-PlowBirdsExtension.MIN_WORKING_SPEED = 0.5  -- Minimum speed to be considered "working"
+PlowBirdsExtension.DESPAWN_DELAY = 10000   -- 10 seconds in milliseconds
+PlowBirdsExtension.MIN_WORKING_SPEED = 0.5 -- Minimum speed to be considered "working"
 
 ---
 -- Initialize the extension on a plow vehicle
@@ -18,7 +18,7 @@ function PlowBirdsExtension:initialize(vehicle)
     if not vehicle.spec_plow then
         return
     end
-    
+
     -- Add our extension data to the vehicle
     vehicle.plowBirdsData = {
         hotspot = nil,
@@ -39,61 +39,53 @@ function PlowBirdsExtension:onUpdate(vehicle, dt)
     if not vehicle.plowBirdsData or not vehicle.plowBirdsData.initialized then
         PlowBirdsExtension:initialize(vehicle)
     end
-    
+
     if not vehicle.plowBirdsData then
         return
     end
-    
+
     local data = vehicle.plowBirdsData
     local spec = vehicle.spec_plow
-    
+
     if not spec then
         return
     end
-    
+
     -- Determine if plow is currently working
     local isLowered = vehicle.getIsLowered and vehicle:getIsLowered() or false
     local isPowered = vehicle:getIsPowered()
     local speed = vehicle:getLastSpeed()
-    
+
     -- Plow is working if it's lowered, powered, and moving
     local isCurrentlyWorking = isLowered and isPowered and speed > PlowBirdsExtension.MIN_WORKING_SPEED
-    
-    -- Debug logging (occasionally)
-    if math.random() < 0.01 then
-        print(string.format("[PlowBirdsExtension] lowered=%s, powered=%s, speed=%.2f, working=%s",
-            tostring(isLowered), tostring(isPowered), speed, tostring(isCurrentlyWorking)))
-    end
-    
+
     -- Handle state transitions
     if isCurrentlyWorking and not data.isWorking then
         -- Just started working - activate hotspot
-        print("[PlowBirdsExtension] === PLOW STARTED WORKING ===")
         PlowBirdsExtension:activateHotspot(vehicle)
         data.isWorking = true
         data.despawnTimer = 0
     elseif not isCurrentlyWorking and data.isWorking then
         -- Just stopped working - start despawn timer
-        print("[PlowBirdsExtension] === PLOW STOPPED WORKING - Starting despawn timer ===")
         data.isWorking = false
         data.despawnTimer = PlowBirdsExtension.DESPAWN_DELAY
     end
-    
+
     -- Update hotspot position even when inactive (for despawning birds)
     if data.hotspot then
         data.hotspot:update(dt)
     end
-    
+
     -- Handle despawn timer
     if not data.isWorking and data.despawnTimer > 0 then
         data.despawnTimer = data.despawnTimer - dt
-        
+
         if data.despawnTimer <= 0 then
             -- Timer expired - cleanup birds
             PlowBirdsExtension:deactivateHotspot(vehicle)
         end
     end
-    
+
     data.wasWorkingLastFrame = isCurrentlyWorking
 end
 
@@ -103,23 +95,20 @@ end
 ---
 function PlowBirdsExtension:activateHotspot(vehicle)
     local data = vehicle.plowBirdsData
-    
+
     if not data then
         return
     end
-    
+
     -- Create hotspot if it doesn't exist
     if not data.hotspot then
         data.hotspot = PlowBirdHotspotDirect.new(vehicle)
     end
-    
+
     -- Activate the hotspot
     if data.hotspot:activate() then
-        print("[PlowBirdsExtension] Hotspot activated, spawning birds for " .. vehicle:getName())
         -- Spawn initial birds once
         data.hotspot:spawnInitialBirds()
-    else
-        print("[PlowBirdsExtension] ERROR: Failed to activate hotspot for " .. vehicle:getName())
     end
 end
 
@@ -129,12 +118,11 @@ end
 ---
 function PlowBirdsExtension:deactivateHotspot(vehicle)
     local data = vehicle.plowBirdsData
-    
+
     if not data or not data.hotspot then
         return
     end
-    
-    print("[PlowBirdsExtension] === DEACTIVATING HOTSPOT ===")
+
     data.hotspot:cleanup()
     data.despawnTimer = 0
 end
@@ -163,7 +151,7 @@ function PlowBirdsExtension:plowOnUpdate(superFunc, dt, isActiveForInput, isActi
     if superFunc ~= nil then
         superFunc(self, dt, isActiveForInput, isActiveForInputIgnoreSelection, isSelected)
     end
-    
+
     -- Add our bird spawning logic
     PlowBirdsExtension:onUpdate(self, dt)
 end
@@ -175,7 +163,7 @@ end
 function PlowBirdsExtension:plowOnDelete(superFunc)
     -- Cleanup our extension
     PlowBirdsExtension:onDelete(self)
-    
+
     -- Call original function
     if superFunc ~= nil then
         superFunc(self)

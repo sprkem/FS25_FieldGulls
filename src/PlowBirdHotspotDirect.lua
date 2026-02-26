@@ -7,12 +7,12 @@ PlowBirdHotspotDirect = {}
 local PlowBirdHotspotDirect_mt = Class(PlowBirdHotspotDirect)
 
 -- Configuration
-PlowBirdHotspotDirect.HOTSPOT_RADIUS = 5         -- Radius around the plow where birds gather (meters)
-PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 2  -- How far behind the plow to position the hotspot (meters)
-PlowBirdHotspotDirect.MAX_BIRDS = 20             -- Maximum number of birds around the plow
-PlowBirdHotspotDirect.UPDATE_INTERVAL = 50       -- Update hotspot position every 50ms (20 times per second)
-PlowBirdHotspotDirect.SPAWN_DISTANCE_BEHIND = 50 -- Birds spawn 50m behind tractor
-PlowBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN = 40  -- Birds spawn 40m above terrain
+PlowBirdHotspotDirect.HOTSPOT_RADIUS = 5              -- Radius around the plow where birds gather (meters)
+PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 2       -- How far behind the plow to position the hotspot (meters)
+PlowBirdHotspotDirect.MAX_BIRDS = 20                  -- Maximum number of birds around the plow
+PlowBirdHotspotDirect.UPDATE_INTERVAL = 50            -- Update hotspot position every 50ms (20 times per second)
+PlowBirdHotspotDirect.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
+PlowBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN = 40 -- Birds spawn 40m above terrain
 
 ---
 -- Get the working width of the plow from its work areas
@@ -23,23 +23,22 @@ function PlowBirdHotspotDirect.getPlowWorkingWidth(vehicle)
     if not vehicle or not vehicle.spec_workArea then
         return 5.0 -- Default fallback
     end
-    
+
     local workAreas = vehicle.spec_workArea.workAreas
     if not workAreas or #workAreas == 0 then
         return 5.0
     end
-    
+
     -- Get the first plow work area
     for _, workArea in ipairs(workAreas) do
         if workArea.type == WorkAreaType.PLOW and workArea.start and workArea.width then
             local x1, _, z1 = getWorldTranslation(workArea.start)
             local x2, _, z2 = getWorldTranslation(workArea.width)
             local width = math.sqrt((x2 - x1) ^ 2 + (z2 - z1) ^ 2)
-            print(string.format("[PlowBirdHotspotDirect] Detected plow working width: %.2fm", width))
             return width
         end
     end
-    
+
     return 5.0 -- Fallback if no plow work area found
 end
 
@@ -56,16 +55,15 @@ function PlowBirdHotspotDirect.new(plowVehicle)
     self.worldY = -200 -- Start below ground (inactive)
     self.worldZ = 0
     self.radius = PlowBirdHotspotDirect.HOTSPOT_RADIUS
-    self.spawnedBirds = {} -- Track our spawned birds
+    self.spawnedBirds = {}    -- Track our spawned birds
     self.despawningBirds = {} -- Track birds that are flying away
     self.isActive = false
     self.lastUpdateTime = 0
-    self.lastBirdUpdateTime = 0                                   -- For updating bird movement targets
-    self.movementDirection = 0                                    -- Direction the plow is moving
-    self.birdsSpawned = false                                     -- Track if initial birds have been spawned
+    self.lastBirdUpdateTime = 0                                                -- For updating bird movement targets
+    self.movementDirection = 0                                                 -- Direction the plow is moving
+    self.birdsSpawned = false                                                  -- Track if initial birds have been spawned
     self.workingWidth = PlowBirdHotspotDirect.getPlowWorkingWidth(plowVehicle) -- Cache the working width
 
-    print("[PlowBirdHotspotDirect] Created (using direct i3d approach)")
     return self
 end
 
@@ -74,9 +72,7 @@ end
 -- @return true if activated successfully
 ---
 function PlowBirdHotspotDirect:activate()
-    print("[PlowBirdHotspotDirect] === ACTIVATE CALLED ===")
     if not self.plowVehicle or self.isActive then
-        print("[PlowBirdHotspotDirect] Already active or no vehicle")
         return false
     end
 
@@ -96,8 +92,6 @@ function PlowBirdHotspotDirect:activate()
     self.lastUpdateTime = g_time
     self.birdsSpawned = false
 
-    print("[PlowBirdHotspotDirect] Hotspot activated with direct i3d management")
-
     return true
 end
 
@@ -105,8 +99,6 @@ end
 -- Deactivate the hotspot
 ---
 function PlowBirdHotspotDirect:deactivate()
-    print(string.format("[PlowBirdHotspotDirect] === DEACTIVATE CALLED === Active birds: %d, Despawning birds: %d", 
-        #self.spawnedBirds, #self.despawningBirds))
     self.isActive = false
     self.worldY = -200 -- Move below ground
 end
@@ -120,29 +112,24 @@ function PlowBirdHotspotDirect:update(dt)
     for i = #self.despawningBirds, 1, -1 do
         local bird = self.despawningBirds[i]
         if bird then
-            bird:update(dt)  -- Keep updating the bird's movement
+            bird:update(dt) -- Keep updating the bird's movement
             local elapsed = g_time - bird.despawnStartTime
             if elapsed > 5000 then
-                print(string.format("[PlowBirdHotspotDirect] Despawning bird %d deleted after %.1fs", i, elapsed/1000))
                 if bird.delete then
                     bird:delete()
                 end
                 table.remove(self.despawningBirds, i)
-            elseif math.random() < 0.05 then  -- 5% logging chance
-                local x, y, z = bird:getCurrentPosition()
-                print(string.format("[PlowBirdHotspotDirect] Despawning bird %d: pos=(%.1f,%.1f,%.1f) elapsed=%.1fs",
-                    i, x, y, z, elapsed/1000))
             end
         end
     end
-    
+
     -- Auto-deactivate when no active birds and no despawning birds
     if not self.isActive and #self.despawningBirds == 0 then
-        return  -- Fully inactive, nothing to update
+        return -- Fully inactive, nothing to update
     end
-    
+
     if not self.isActive or not self.plowVehicle then
-        return  -- Only update despawning birds above
+        return -- Only update despawning birds above
     end
 
     -- Update each bird EVERY FRAME for smooth movement
@@ -182,45 +169,41 @@ function PlowBirdHotspotDirect:spawnInitialBirds()
         return false
     end
 
-    print(string.format("[PlowBirdHotspotDirect] Spawning %d SimpleBirdDirect instances 50m behind at 40m height", 
-        PlowBirdHotspotDirect.MAX_BIRDS))
-
     -- Spawn birds spread perpendicular to movement direction, 50m behind, 40m up
     local totalSpawned = 0
     for i = 1, PlowBirdHotspotDirect.MAX_BIRDS do
         -- Calculate perpendicular angle (90 degrees to movement direction)
         local perpAngle = self.movementDirection + math.pi / 2
-        
+
         -- Spread birds along perpendicular axis based on plow working width
         local lateralOffset = (i / PlowBirdHotspotDirect.MAX_BIRDS - 0.5) * self.workingWidth * 1.5
-        
+
         -- Calculate spawn position: hotspot + lateral offset perpendicular + 50m backward
-        local longitudinalOffset = PlowBirdHotspotDirect.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5  -- 50m ±2.5m
-        
-        local spawnX = self.worldX + math.sin(perpAngle) * lateralOffset - math.sin(self.movementDirection) * longitudinalOffset
-        local spawnZ = self.worldZ + math.cos(perpAngle) * lateralOffset - math.cos(self.movementDirection) * longitudinalOffset
-        
+        local longitudinalOffset = PlowBirdHotspotDirect.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
+
+        local spawnX = self.worldX + math.sin(perpAngle) * lateralOffset -
+            math.sin(self.movementDirection) * longitudinalOffset
+        local spawnZ = self.worldZ + math.cos(perpAngle) * lateralOffset -
+            math.cos(self.movementDirection) * longitudinalOffset
+
         -- Spawn at terrain height + 40m
         local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, spawnX, 0, spawnZ)
-        local spawnY = terrainY + PlowBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN + (math.random() - 0.5) * 5  -- ±2.5m variation
+        local spawnY = terrainY + PlowBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN +
+            (math.random() - 0.5) *
+            5                     -- ±2.5m variation
 
         -- Create a SimpleBirdDirect (has built-in state machine)
         local bird = SimpleBirdDirect.new(spawnX, spawnY, spawnZ, self)
-        
+
         if bird then
             -- Track it
             table.insert(self.spawnedBirds, bird)
             totalSpawned = totalSpawned + 1
-            
-            -- Bird's state machine will handle the initial approach automatically
-            print(string.format("[PlowBirdHotspotDirect] Spawned bird %d at (%.1f, %.1f, %.1f) - state machine active", 
-                i, spawnX, spawnY, spawnZ))
         end
     end
 
     self.birdsSpawned = true
     self.lastBirdUpdateTime = g_time
-    print(string.format("[PlowBirdHotspotDirect] === Spawned %d SimpleBirdDirect instances with state machines ===", totalSpawned))
     return totalSpawned > 0
 end
 
@@ -228,9 +211,6 @@ end
 -- Clean up all birds spawned by this hotspot
 ---
 function PlowBirdHotspotDirect:cleanup()
-    print(string.format("[PlowBirdHotspotDirect] === CLEANUP: Requesting %d birds to enter despawn state ===", 
-        #self.spawnedBirds))
-
     -- Request each bird to enter despawn state via state machine
     local despawnCount = 0
     for i, bird in ipairs(self.spawnedBirds) do
@@ -239,9 +219,8 @@ function PlowBirdHotspotDirect:cleanup()
             -- State machine will handle flying away automatically
             if bird.requestDespawn then
                 bird:requestDespawn()
-                print(string.format("[PlowBirdHotspotDirect] Bird %d entering despawn state", i))
             end
-            
+
             -- Move to despawning list
             table.insert(self.despawningBirds, bird)
             despawnCount = despawnCount + 1
@@ -250,8 +229,7 @@ function PlowBirdHotspotDirect:cleanup()
 
     self.spawnedBirds = {}
     self.birdsSpawned = false
-    print(string.format("[PlowBirdHotspotDirect] === %d birds now despawning via state machine ===", despawnCount))
-    
+
     -- Stop spawning new ones, but keep updating despawning birds
     self.isActive = false
 end
