@@ -190,13 +190,30 @@ function BirdStateMachine:enterFeedingGroundState()
         return
     end
 
+    -- Capture landing yaw (horizontal facing direction) to preserve
+    if self.bird.sceneNode then
+        local p, y, r = getRotation(self.bird.sceneNode)
+        self.stateData.landingYaw = y  -- Store the yaw we want to keep
+    end
+
     -- Set landing/eating animation when reaching ground
     if self.bird.setAnimationByName then
         self.bird:setAnimationByName(SimpleBirdDirect.ANIM_IDLE_EAT)
     end
+    
+    -- Force bird flat on ground (pitch=0, roll=0) with preserved yaw for eating
+    if self.bird.sceneNode and self.stateData.landingYaw then
+        setRotation(self.bird.sceneNode, 0, self.stateData.landingYaw, 0)
+    end
 end
 
 function BirdStateMachine:updateFeedingGroundState(dt)
+    -- Continuously enforce flat rotation with preserved yaw (idleEat should be flat on ground)
+    if self.bird.sceneNode and self.stateData.landingYaw then
+        -- Always force flat rotation: pitch=0, roll=0, yaw=landing direction
+        setRotation(self.bird.sceneNode, 0, self.stateData.landingYaw, 0)
+    end
+
     -- Stay on ground briefly before flying up again (time configured per species in XML)
     if not self.stateData.groundStartTime then
         self.stateData.groundStartTime = g_time

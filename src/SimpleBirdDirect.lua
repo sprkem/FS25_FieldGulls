@@ -115,7 +115,6 @@ function SimpleBirdDirect.new(x, y, z, hotspot)
         self.attributes = SimpleBirdDirect.loadAttributesFromXML(xmlFile, "species")
         delete(xmlFile)
     else
-        print("Error: Failed to load bird species XML from: " .. tostring(xmlFilename))
         self.attributes = nil
         return nil
     end
@@ -166,7 +165,6 @@ function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
         if self.attributes.nodeIndex then
             sceneNode = I3DUtil.indexToObject(i3dNode, self.attributes.nodeIndex)
             if not sceneNode or sceneNode == 0 then
-                print("[SimpleBirdDirect] ERROR: Could not find node at index " .. tostring(self.attributes.nodeIndex))
                 delete(i3dNode)
                 return
             end
@@ -177,9 +175,6 @@ function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
         local animCharSetNode = nil
         if self.attributes.animCharSetNode then
             animCharSetNode = I3DUtil.indexToObject(i3dNode, self.attributes.animCharSetNode)
-            if animCharSetNode and animCharSetNode ~= 0 then
-                print("[SimpleBirdDirect] Found AnimCharSet node at index " .. tostring(self.attributes.animCharSetNode))
-            end
         end
 
         -- Find the shape node for rendering
@@ -188,10 +183,6 @@ function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
             local shapeNode = I3DUtil.indexToObject(i3dNode, self.attributes.shapeNodeIndex)
             if shapeNode and shapeNode ~= 0 then
                 birdNode = shapeNode
-                print("[SimpleBirdDirect] Found shape node at index " .. tostring(self.attributes.shapeNodeIndex))
-            else
-                print("[SimpleBirdDirect] WARNING: Could not find shape at index " ..
-                tostring(self.attributes.shapeNodeIndex))
             end
         end
 
@@ -227,7 +218,6 @@ end
 ---
 function SimpleBirdDirect:setupAnimations(animNode)
     if not animNode or animNode == 0 then
-        print("[SimpleBirdDirect] WARNING: No animation node provided")
         return
     end
 
@@ -257,11 +247,8 @@ function SimpleBirdDirect:setupShaderAnimations(birdNode)
     self.shaderNode = I3DUtil.indexToObject(birdNode, self.attributes.shaderNodeIndex)
 
     if not self.shaderNode or self.shaderNode == 0 then
-        print("[SimpleBirdDirect] ERROR: Shader node not found at index " .. tostring(self.attributes.shaderNodeIndex))
         return
     end
-
-    print("[SimpleBirdDirect] Using shader-based animations (opcode system)")
 
     -- Set animation offset for variety
     setShaderParameter(self.shaderNode, "animOffset", math.random(), nil, nil, nil, false)
@@ -283,7 +270,6 @@ end
 ---
 function SimpleBirdDirect:setupAnimCharSetAnimations(animNode)
     if not animNode or animNode == 0 then
-        print("[SimpleBirdDirect] ERROR: No animation node provided")
         return
     end
 
@@ -291,27 +277,8 @@ function SimpleBirdDirect:setupAnimCharSetAnimations(animNode)
     local testAnimCharSet = getAnimCharacterSet(animNode)
     if testAnimCharSet and testAnimCharSet ~= 0 then
         self.animCharSet = testAnimCharSet
-        print("[SimpleBirdDirect] Found AnimCharSet on skeleton node")
     else
-        print("[SimpleBirdDirect] ERROR: No AnimCharSet found on provided node")
         return
-    end
-
-    print("[SimpleBirdDirect] Using AnimCharSet system")
-
-    -- Diagnostic: Try to enumerate available animation clips (if API supports it)
-    local success, numClips = pcall(function() return getNumOfClips(self.animCharSet) end)
-    if success and numClips then
-        print(string.format("[SimpleBirdDirect] AnimCharSet has %d clip(s)", numClips))
-
-        for clipIdx = 0, numClips - 1 do
-            local clipSuccess, clipName = pcall(function() return getClipName(self.animCharSet, clipIdx) end)
-            if clipSuccess and clipName then
-                print(string.format("[SimpleBirdDirect]   Clip[%d]: '%s'", clipIdx, clipName))
-            end
-        end
-    else
-        print("[SimpleBirdDirect] Cannot enumerate clips (API not available) - will check individual clips")
     end
 
     -- Check if we're using named clips or frame-based animations
@@ -327,37 +294,16 @@ function SimpleBirdDirect:setupAnimCharSetAnimations(animNode)
     end
 
     if usingNamedClips then
-        print("[SimpleBirdDirect] Configuration uses named animation clips")
-        -- Verify all clips are available
-        local allClipsFound = true
-        for stateName, animData in pairs(self.attributes.animations) do
-            if animData.clipName then
-                local clipIndex = getAnimClipIndex(self.animCharSet, animData.clipName)
-                if clipIndex >= 0 then
-                    print(string.format("[SimpleBirdDirect]   Found '%s' -> '%s'", stateName, animData.clipName))
-                else
-                    print(string.format("[SimpleBirdDirect]   MISSING '%s' -> '%s'", stateName, animData.clipName))
-                    allClipsFound = false
-                end
-            end
+        -- Start with the animation appropriate for current state (or fly as default)
+        local animName = "fly"
+        if self.pendingAnimName then
+            animName = self.pendingAnimName
+            self.pendingAnimName = nil
+        elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
+            animName = self.stateMachine:getCurrentStateAnimation()
         end
-
-        if not allClipsFound then
-            print("[SimpleBirdDirect] WARNING: Some animation clips are missing - may need frame-based approach")
-        else
-            -- Start with the animation appropriate for current state (or fly as default)
-            local animName = "fly"
-            if self.pendingAnimName then
-                animName = self.pendingAnimName
-                self.pendingAnimName = nil
-            elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
-                animName = self.stateMachine:getCurrentStateAnimation()
-            end
-            self:setAnimationByName(animName)
-        end
+        self:setAnimationByName(animName)
     elseif usingFrameBased then
-        print("[SimpleBirdDirect] Configuration uses frame-based animations")
-        
         -- Start with pending animation or current state animation
         local animName = "fly"
         if self.pendingAnimName then
@@ -367,8 +313,6 @@ function SimpleBirdDirect:setupAnimCharSetAnimations(animNode)
             animName = self.stateMachine:getCurrentStateAnimation()
         end
         self:setAnimationByName(animName)
-    else
-        print("[SimpleBirdDirect] WARNING: No animation configuration found")
     end
 end
 
@@ -379,7 +323,6 @@ end
 function SimpleBirdDirect:setAnimationByName(animationName)
     local anim = self.attributes.animations[animationName]
     if not anim then
-        print("[SimpleBirdDirect] Animation not found: " .. tostring(animationName))
         return
     end
     
@@ -423,11 +366,6 @@ function SimpleBirdDirect:setAnimationByName(animationName)
             enableAnimTrack(self.animCharSet, 0)
             setAnimTrackTime(self.animCharSet, 0, startTimeMs, true)
             disableAnimTrack(self.animCharSet, 0)
-            
-            print(string.format(
-                "[SimpleBirdDirect] Setup '%s': frames %d-%d = %.0f-%.0fms (%.2fs-%.2fs) of %.0fms clip, %.2fms/frame",
-                animationName, anim.startFrame, anim.endFrame, startTimeMs, endTimeMs, 
-                startTimeMs/1000, endTimeMs/1000, self.clipDuration, msPerFrame))
         elseif anim.clipName then
             local clipIndex = getAnimClipIndex(self.animCharSet, anim.clipName)
             if clipIndex >= 0 then
@@ -437,9 +375,6 @@ function SimpleBirdDirect:setAnimationByName(animationName)
                 setAnimTrackTime(self.animCharSet, 0, 0, true)
                 enableAnimTrack(self.animCharSet, 0)
                 self.currentAnimName = animationName
-            else
-                print(string.format("[SimpleBirdDirect] WARNING: Animation clip '%s' not found for animation '%s'",
-                    anim.clipName, animationName))
             end
         end
     end
@@ -569,8 +504,9 @@ function SimpleBirdDirect:update(dt)
 
         setWorldTranslation(self.rootNode, newX, newY, newZ)
 
-        -- Orient the bird using tangent of the curve
-        if self.visualNode then
+        -- Orient the bird using tangent of the curve (only while moving)
+        -- Rotate sceneNode (parent) instead of visualNode to override animation
+        if self.sceneNode and not completed then
             local t = self.pathDistance / self.curvedPath:getTotalLength()
             local dx, dy, dz = self.curvedPath:getTangentAtParameter(t)
 
@@ -579,7 +515,7 @@ function SimpleBirdDirect:update(dt)
                 -- Add pitch based on vertical component
                 local horizontalLength = math.sqrt(dx * dx + dz * dz)
                 local pitch = -math.atan2(dy, horizontalLength)
-                setRotation(self.visualNode, pitch, rotY, 0)
+                setRotation(self.sceneNode, pitch, rotY, 0)
             end
         end
 
@@ -606,7 +542,8 @@ function SimpleBirdDirect:update(dt)
         local distance3D = math.sqrt(dx * dx + dy * dy + dz * dz)
 
         -- Check if we've reached the target (simple 3D distance check)
-        if distance3D < 0.5 then
+        local reachedTarget = distance3D < 0.5
+        if reachedTarget then
             setWorldTranslation(self.rootNode, self.targetX, self.targetY, self.targetZ)
             self.hasTarget = false
             self.isMoving = false
@@ -651,16 +588,18 @@ function SimpleBirdDirect:update(dt)
 
         setWorldTranslation(self.rootNode, newX, newY, newZ)
 
-        -- Orient the bird toward movement direction (using actual movement delta)
+        -- Orient the bird toward movement direction (only during active movement, not when landing)
+        -- Check if we're about to reach target on next frame
+        local willReachTarget = distance3D < 1.0  -- Within 1m of target = about to land
         local moveDX = newX - currentX
         local moveDY = newY - currentY
         local moveDZ = newZ - currentZ
 
-        if self.visualNode and (moveDX ~= 0 or moveDZ ~= 0) then
+        if self.sceneNode and (moveDX ~= 0 or moveDZ ~= 0) and not willReachTarget then
             local rotY = math.atan2(moveDX, moveDZ)
             local horizontalLength = math.sqrt(moveDX * moveDX + moveDZ * moveDZ)
             local pitch = -math.atan2(moveDY, horizontalLength)
-            setRotation(self.visualNode, pitch, rotY, 0)
+            setRotation(self.sceneNode, pitch, rotY, 0)
         end
     end
 end
