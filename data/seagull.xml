@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<species>
+    <name>seagull</name>
+    <asset filename="seagull/SeagullBigScale.i3d" modName="FS25_FollowingBirds" />
+    <animation type="animCharSet" animCharSetNode="0" shapeNode="2" shaderNode="0|0">
+        <!-- Frame-based animations from SeagullBigScale.i3d -->
+        <!-- Flying animations (flapping) -->
+        <animation stateName="fly" startFrame="135" endFrame="155" speed="1.0" transitionTime="0.15" />
+        <animation stateName="flyUp" startFrame="235" endFrame="255" speed="1.0" transitionTime="0.15" />
+        <animation stateName="flyDownFlapping" startFrame="210" endFrame="230" speed="1.0" transitionTime="0.15" />
+        <animation stateName="flyRight" startFrame="160" endFrame="180" speed="1.0" transitionTime="0.15" />
+        <animation stateName="flyLeft" startFrame="185" endFrame="205" speed="1.0" transitionTime="0.15" />
+        
+        <!-- Gliding animations (smoother, less energy) -->
+        <animation stateName="glide" startFrame="260" endFrame="270" speed="1.0" transitionTime="0.2" />
+        <animation stateName="glideUp" startFrame="320" endFrame="330" speed="1.0" transitionTime="0.2" />
+        <animation stateName="glideDown" startFrame="305" endFrame="315" speed="1.0" transitionTime="0.2" />
+        
+        <!-- Soaring (long distance smooth flight) -->
+        <animation stateName="soar" startFrame="555" endFrame="585" speed="1.0" transitionTime="0.25" />
+        
+        <!-- Ground animations -->
+        <animation stateName="idleEat" startFrame="520" endFrame="550" speed="1.0" transitionTime="0.25" />
+        <animation stateName="walk" startFrame="370" endFrame="390" speed="1.0" transitionTime="0.2" />
+        
+        <!-- Hovering animations (in place) -->
+        <animation stateName="hover" startFrame="10" endFrame="30" speed="1.0" transitionTime="0.15" />
+        <animation stateName="hoverUp" startFrame="110" endFrame="130" speed="1.0" transitionTime="0.15" />
+        <animation stateName="hoverDown" startFrame="85" endFrame="105" speed="1.0" transitionTime="0.15" />
+    </animation>
+    
+    <!-- Behavior configuration -->
+    <behavior groundIdleTimeMin="0.5" groundIdleTimeMax="2.0" />
+</species>

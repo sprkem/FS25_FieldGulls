@@ -2,7 +2,7 @@
 
 ## Description
 
-This mod adds immersive wildlife behavior by spawning birds that follow plows while they work. Crows will spawn behind active plows and fly to the freshly worked soil, creating a realistic farming atmosphere.
+This mod adds immersive wildlife behavior by spawning birds that follow plows while they work. Birds will spawn behind active plows and fly to the freshly worked soil, creating a realistic farming atmosphere.
 
 ## Features
 
@@ -47,7 +47,6 @@ PlowBirdsExtension.MIN_WORKING_SPEED = 0.5         -- Minimum speed to trigger b
 
 - Farming Simulator 25
 - A map with wildlife enabled (most standard maps)
-- Crow species must be available in the map's wildlife configuration
 
 ## Installation
 
@@ -75,7 +74,7 @@ PlowBirdsExtension.MIN_WORKING_SPEED = 0.5         -- Minimum speed to trigger b
 The mod uses Farming Simulator's existing wildlife system and:
 1. Hooks into the `Plow` specialization's `onUpdate` and `onDelete` events
 2. Creates a mobile hotspot that follows the plow's position
-3. Spawns crow instances using the game's wildlife spawning system
+3. Spawns bird instances using the game's wildlife spawning system
 4. Manages bird lifecycle based on plow working state
 
 ## Future Enhancements

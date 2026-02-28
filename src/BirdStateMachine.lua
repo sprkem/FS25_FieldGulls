@@ -226,10 +226,10 @@ function BirdStateMachine:enterFeedingUpState()
         self.bird:setAnimationByName(SimpleBirdDirect.ANIM_FLY_UP)
     end
 
-    -- Fly straight up from current position (with slight horizontal drift for realism)
+    -- Fly up in a curved arc (with significant horizontal drift for natural curved flight)
     local upHeight = self.feedingConfig.upwardHeight + math.random() * 5.0 -- 10-15m
-    local driftX = (math.random() - 0.5) * 3.0                             -- Up to 1.5m drift in X
-    local driftZ = (math.random() - 0.5) * 3.0                             -- Up to 1.5m drift in Z
+    local driftX = (math.random() - 0.5) * 16.0                             -- Up to 8m drift in X
+    local driftZ = (math.random() - 0.5) * 16.0                             -- Up to 8m drift in Z
 
     local targetX = currentX + driftX
     local targetY = currentY + upHeight
