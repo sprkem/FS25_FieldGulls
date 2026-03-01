@@ -17,7 +17,7 @@ function ToolBirdsExtension:initialize(vehicle, workAreaType)
 
     -- Add our extension data to the vehicle
     vehicle.toolBirdsData = {
-        hotspot = nil,
+        flockManager = nil,
         isWorking = false,
         initialized = true,
         workAreaType = workAreaType
@@ -39,61 +39,60 @@ function ToolBirdsExtension:onUpdate(vehicle, dt, isCurrentlyWorking)
 
     -- Handle state transitions
     if isCurrentlyWorking and not data.isWorking then
-        -- Just started working - activate hotspot and cancel any despawn timer
-        ToolBirdsExtension:activateHotspot(vehicle)
-        if data.hotspot then
-            data.hotspot:cancelDespawnTimer()
+        -- Just started working - activate flock and cancel any despawn timer
+        ToolBirdsExtension:activateFlockManager(vehicle)
+        if data.flockManager then
+            data.flockManager:cancelDespawnTimer()
         end
         data.isWorking = true
     elseif not isCurrentlyWorking and data.isWorking then
-        -- Just stopped working - start despawn timer on hotspot
+        -- Just stopped working - start despawn timer on flock
         data.isWorking = false
-        if data.hotspot then
-            data.hotspot:startDespawnTimer()
+        if data.flockManager then
+            data.flockManager:startDespawnTimer()
         end
     end
 
-    -- NOTE: Hotspot updates (including timer countdown) are now handled by BirdManager
+    -- NOTE: Flock manager updates (including timer countdown) are now handled by BirdManager
     -- This ensures birds continue updating even when vehicle is optimized/inactive
 end
 
 ---
--- Activate the bird hotspot for this tool
+-- Activate the bird flock manager for this tool
 -- @param vehicle: The vehicle with tool
 ---
-function ToolBirdsExtension:activateHotspot(vehicle)
+function ToolBirdsExtension:activateFlockManager(vehicle)
     local data = vehicle.toolBirdsData
 
     if not data then
         return
     end
 
-    -- Create hotspot if it doesn't exist
-    if not data.hotspot then
-        data.hotspot = ToolBirdHotspotDirect.new(vehicle, data.workAreaType)
+    -- Create flock manager if it doesn't exist
+    if not data.flockManager then
+        data.flockManager = ToolBirdFlockManager.new(vehicle, data.workAreaType)
     end
 
-    -- Activate the hotspot
-    if data.hotspot:activate() then
-        -- Spawn initial birds once
-        data.hotspot:spawnInitialBirds()
+    -- Activate the flock manager
+    if data.flockManager:activate() then
+        -- Spawning will happen automatically in update()
     end
 end
 
 ---
--- Deactivate and cleanup the bird hotspot
+-- Deactivate and cleanup the bird flock manager
 -- @param vehicle: The vehicle with tool
 ---
-function ToolBirdsExtension:deactivateHotspot(vehicle)
+function ToolBirdsExtension:deactivateFlockManager(vehicle)
     local data = vehicle.toolBirdsData
 
-    if not data or not data.hotspot then
+    if not data or not data.flockManager then
         return
     end
 
-    -- Cleanup will be called by hotspot when timer expires
+    -- Cleanup will be called by flock manager when timer expires
     -- Just ensure cleanup happens now
-    data.hotspot:cleanup()
+    data.flockManager:cleanup()
 end
 
 ---
@@ -101,12 +100,12 @@ end
 -- @param vehicle: The vehicle with tool
 ---
 function ToolBirdsExtension:onDelete(vehicle)
-    if vehicle.toolBirdsData and vehicle.toolBirdsData.hotspot then
-        ToolBirdsExtension:deactivateHotspot(vehicle)
+    if vehicle.toolBirdsData and vehicle.toolBirdsData.flockManager then
+        ToolBirdsExtension:deactivateFlockManager(vehicle)
         
         -- Unregister from BirdManager
         if BirdManager then
-            BirdManager:unregisterHotspot(vehicle)
+            BirdManager:unregisterFlockManager(vehicle)
         end
         
         vehicle.toolBirdsData = nil

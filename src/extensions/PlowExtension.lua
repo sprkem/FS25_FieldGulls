@@ -9,6 +9,34 @@ PlowExtension = {}
 PlowExtension.MIN_WORKING_SPEED = 0.5 -- Minimum speed to be considered "working"
 
 ---
+-- Hook into work area processing to track grid cells for bird feeding
+-- @param superFunc: Original processFruitPlowArea function
+-- @param workArea: The work area being processed
+-- @param dt: Delta time
+---
+function PlowExtension:processFruitPlowArea(superFunc, workArea, dt)
+    -- Call original function first
+    local changedArea, totalArea = superFunc(self, workArea, dt)
+    
+    -- Track grid cells for bird feeding if we're working
+    if changedArea and changedArea > 0 and g_gridFeedingZones then
+        local sx, sy, sz = getWorldTranslation(workArea.start)
+        local wx, wy, wz = getWorldTranslation(workArea.width)
+        local hx, hy, hz = getWorldTranslation(workArea.height)
+        
+        -- Get affected grid cells
+        local cells = GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
+        
+        -- Add cells to global grid system
+        for _, cell in ipairs(cells) do
+            g_gridFeedingZones:addCell(cell.gridX, cell.gridZ)
+        end
+    end
+    
+    return changedArea, totalArea
+end
+
+---
 -- Extended onUpdate function for Plow specialization
 -- @param superFunc: Original function
 -- @param dt: Delta time in milliseconds
@@ -52,6 +80,11 @@ function PlowExtension:onDelete(superFunc)
 end
 
 -- Hook into Plow specialization
+Plow.processFruitPlowArea = Utils.overwrittenFunction(
+    Plow.processFruitPlowArea,
+    PlowExtension.processFruitPlowArea
+)
+
 Plow.onUpdate = Utils.overwrittenFunction(
     Plow.onUpdate,
     PlowExtension.onUpdate
@@ -61,3 +94,4 @@ Plow.onDelete = Utils.overwrittenFunction(
     Plow.onDelete,
     PlowExtension.onDelete
 )
+

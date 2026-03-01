@@ -121,7 +121,7 @@ end
 -- SPAWNING STATE: Bird spawns 50m behind tractor at terrain + 40m height
 ---
 function BirdStateMachine:enterSpawningState()
-    -- The bird is already spawned at the correct position by PlowBirdHotspotDirect
+    -- The bird is already spawned at the correct position by ToolBirdFlockManager
     -- Transition immediately to approaching
     self:setState(BirdStateMachine.STATE_APPROACHING_PLOW)
 end
@@ -131,10 +131,10 @@ function BirdStateMachine:updateSpawningState(dt)
 end
 
 ---
--- APPROACHING PLOW STATE: Fly towards plow (up to 10m distance)
+-- APPROACHING PLOW STATE: Find and fly to a worked grid cell
 ---
 function BirdStateMachine:enterApproachingPlowState()
-    if not self.bird or not self.bird.hotspot then
+    if not self.bird then
         return
     end
 
@@ -143,18 +143,26 @@ function BirdStateMachine:enterApproachingPlowState()
         self.bird:setAnimationByName(SimpleBirdDirect.ANIM_FLY)
     end
 
-    -- Get hotspot position (near the plow)
-    local hotspot = self.bird.hotspot
-    local targetX = hotspot.worldX
-    local targetZ = hotspot.worldZ
+    local currentX, currentY, currentZ = self.bird:getCurrentPosition()
+    local targetX = currentX
+    local targetZ = currentZ
 
-    -- Target is near the plow area (consistent with feeding loop)
-    -- Add some randomness for natural variation
-    local randomAngle = math.random() * math.pi * 2
-    local randomRadius = math.random() * self.feedingConfig.arcTargetRadius -- 0-5m from plow (same as feeding)
-
-    targetX = targetX + math.sin(randomAngle) * randomRadius
-    targetZ = targetZ + math.cos(randomAngle) * randomRadius
+    -- Request a feeding target from the central grid system
+    if g_gridFeedingZones then
+        local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ)
+        if cellTargetX and cellTargetZ then
+            targetX = cellTargetX
+            targetZ = cellTargetZ
+        else
+            -- No cell found - this bird will circle and wait
+            local totalCells = g_gridFeedingZones:getCellCount()
+            print(string.format("[BirdStateMachine] Warning: No grid cell found for bird approaching (total cells: %d), bird will circle", totalCells))
+            local randomAngle = math.random() * math.pi * 2
+            local randomRadius = 20 + math.random() * 10
+            targetX = currentX + math.sin(randomAngle) * randomRadius
+            targetZ = currentZ + math.cos(randomAngle) * randomRadius
+        end
+    end
 
     -- Target height is near ground level (feeding height)
     local targetY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, targetX, 0, targetZ) +
@@ -178,10 +186,10 @@ function BirdStateMachine:updateApproachingPlowState(dt)
 end
 
 ---
--- FEEDING GROUND STATE: Pick a ground target close to plow area, fly to it
+-- FEEDING GROUND STATE: Bird is on ground, pecking and eating
 ---
 function BirdStateMachine:enterFeedingGroundState()
-    if not self.bird or not self.bird.hotspot then
+    if not self.bird then
         return
     end
 
@@ -238,11 +246,11 @@ function BirdStateMachine:enterFeedingUpState()
         self.bird:setAnimationByName(SimpleBirdDirect.ANIM_FLY_UP)
     end
 
-    -- Fly up in a curved arc (with significant horizontal drift for natural curved flight)
+    -- Fly upward with some horizontal drift
     local upHeight = self.feedingConfig.upwardHeight + math.random() * 5.0 -- 10-15m
-    local driftX = (math.random() - 0.5) * 16.0                            -- Up to 8m drift in X
-    local driftZ = (math.random() - 0.5) * 16.0                            -- Up to 8m drift in Z
-
+    local driftX = (math.random() - 0.5) * 10.0 -- Small horizontal drift
+    local driftZ = (math.random() - 0.5) * 10.0
+    
     local targetX = currentX + driftX
     local targetY = currentY + upHeight
     local targetZ = currentZ + driftZ
@@ -268,10 +276,11 @@ function BirdStateMachine:updateFeedingUpState(dt)
 end
 
 ---
--- FEEDING ARC STATE: Create smooth arcing path back down to ground
+-- FEEDING ARC STATE: Create smooth arcing path back down to a new feeding spot
+-- Two-phase approach: First fly toward work area if far away, then request fresh target and dive
 ---
 function BirdStateMachine:enterFeedingArcState()
-    if not self.bird or not self.bird.hotspot then
+    if not self.bird then
         return
     end
 
@@ -280,14 +289,119 @@ function BirdStateMachine:enterFeedingArcState()
         self.bird:setAnimationByName(SimpleBirdDirect.ANIM_FLY)
     end
 
-    local hotspot = self.bird.hotspot
+    local currentX, currentY, currentZ = self.bird:getCurrentPosition()
+    
+    -- Check if we have cells and get work area position
+    if not g_gridFeedingZones or g_gridFeedingZones:getCellCount() == 0 then
+        -- No cells - circle at height
+        local totalCells = g_gridFeedingZones and g_gridFeedingZones:getCellCount() or 0
+        print(string.format("[BirdStateMachine] Warning: No grid cell found for bird feeding arc (total cells: %d), bird will circle", totalCells))
+        local randomAngle = math.random() * math.pi * 2
+        local randomRadius = 15 + math.random() * 10
+        local targetX = currentX + math.sin(randomAngle) * randomRadius
+        local targetZ = currentZ + math.cos(randomAngle) * randomRadius
+        
+        self.stateData.seekingWorkArea = false
+        if self.bird.moveToCurved then
+            self.bird:moveToCurved(targetX, currentY, targetZ, 10.0, 0.5)
+        else
+            self.bird:moveToTarget(targetX, currentY, targetZ, 10.0)
+        end
+        return
+    end
+    
+    -- Get position of newest cell (work area center)
+    local workAreaX, workAreaZ = g_gridFeedingZones:getWorkAreaPosition()
+    if not workAreaX then
+        -- Shouldn't happen but handle gracefully
+        self.stateData.seekingWorkArea = false
+        return
+    end
+    
+    -- Calculate distance to work area (2D horizontal distance)
+    local dx = workAreaX - currentX
+    local dz = workAreaZ - currentZ
+    local distanceToWorkArea = math.sqrt(dx * dx + dz * dz)
+    
+    -- If far from work area (>20m), fly toward it first at current height
+    if distanceToWorkArea > 20 then
+        self.stateData.seekingWorkArea = true
+        self.stateData.workAreaX = workAreaX
+        self.stateData.workAreaZ = workAreaZ
+        
+        -- Fly toward work area at current height
+        if self.bird.moveToCurved then
+            self.bird:moveToCurved(workAreaX, currentY, workAreaZ, 10.0, 0.3)
+        else
+            self.bird:moveToTarget(workAreaX, currentY, workAreaZ, 10.0)
+        end
+    else
+        -- Close enough - request target immediately and dive down
+        self.stateData.seekingWorkArea = false
+        self:requestTargetAndDive()
+    end
+end
 
-    -- Pick a new ground target near plow
-    local randomAngle = math.random() * math.pi * 2
-    local randomRadius = math.random() * self.feedingConfig.arcTargetRadius
+function BirdStateMachine:updateFeedingArcState(dt)
+    -- If we're seeking work area, check if we're close enough now
+    if self.stateData.seekingWorkArea then
+        local currentX, currentY, currentZ = self.bird:getCurrentPosition()
+        
+        -- Check distance to work area
+        if self.stateData.workAreaX and self.stateData.workAreaZ then
+            local dx = self.stateData.workAreaX - currentX
+            local dz = self.stateData.workAreaZ - currentZ
+            local distance = math.sqrt(dx * dx + dz * dz)
+            
+            -- Within 2m or stopped moving? Request target and dive
+            if distance <= 1 or not self.bird:getIsMoving() then
+                self.stateData.seekingWorkArea = false
+                self:requestTargetAndDive()
+            end
+        end
+    else
+        -- Already diving - check if we reached ground
+        if not self.bird:getIsMoving() then
+            -- Arc complete - go back to ground feeding
+            self:setState(BirdStateMachine.STATE_FEEDING_GROUND)
+        end
+    end
+end
 
-    local targetX = hotspot.worldX + math.sin(randomAngle) * randomRadius
-    local targetZ = hotspot.worldZ + math.cos(randomAngle) * randomRadius
+---
+-- Helper: Request a fresh target from grid and start diving
+---
+function BirdStateMachine:requestTargetAndDive()
+    if not self.bird then
+        return
+    end
+    
+    local currentX, currentY, currentZ = self.bird:getCurrentPosition()
+    local targetX = currentX
+    local targetZ = currentZ
+
+    -- Request a feeding target from the central grid system
+    if g_gridFeedingZones then
+        local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ)
+        if cellTargetX and cellTargetZ then
+            targetX = cellTargetX
+            targetZ = cellTargetZ
+        else
+            -- No cells found - pick random nearby spot
+            local totalCells = g_gridFeedingZones:getCellCount()
+            print(string.format("[BirdStateMachine] Warning: No grid cell for dive (total cells: %d), bird will pick random spot", totalCells))
+            local randomAngle = math.random() * math.pi * 2
+            local randomRadius = 15 + math.random() * 10
+            targetX = currentX + math.sin(randomAngle) * randomRadius
+            targetZ = currentZ + math.cos(randomAngle) * randomRadius
+        end
+    else
+        -- Grid system not available - pick random spot
+        local randomAngle = math.random() * math.pi * 2
+        local randomRadius = 15 + math.random() * 10
+        targetX = currentX + math.sin(randomAngle) * randomRadius
+        targetZ = currentZ + math.cos(randomAngle) * randomRadius
+    end
 
     -- Ground level target
     local targetY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, targetX, 0, targetZ) +
@@ -298,19 +412,11 @@ function BirdStateMachine:enterFeedingArcState()
     self.stateData.targetY = targetY
     self.stateData.targetZ = targetZ
 
-    -- Create arcing path with high curvature for smooth loop
+    -- Create arcing path with high curvature for smooth loop down
     if self.bird.moveToCurved then
         self.bird:moveToCurved(targetX, targetY, targetZ, 10.0, self.feedingConfig.arcCurvature)
     else
         self.bird:moveToTarget(targetX, targetY, targetZ, 10.0)
-    end
-end
-
-function BirdStateMachine:updateFeedingArcState(dt)
-    -- Check if bird completed the arc and reached ground
-    if not self.bird:getIsMoving() then
-        -- Arc complete - go back to ground feeding
-        self:setState(BirdStateMachine.STATE_FEEDING_GROUND)
     end
 end
 
@@ -352,12 +458,12 @@ function BirdStateMachine:enterDespawningState()
 end
 
 function BirdStateMachine:updateDespawningState(dt)
-    -- Bird will be deleted by PlowBirdHotspotDirect after timeout
+    -- Bird will be deleted by ToolBirdFlockManager after timeout
     -- Just keep flying to target
 end
 
 ---
--- Request state machine to enter despawning state (called by hotspot on cleanup)
+-- Request state machine to enter despawning state (called by flock manager on cleanup)
 ---
 function BirdStateMachine:requestDespawn()
     if self.currentState ~= BirdStateMachine.STATE_DESPAWNING then

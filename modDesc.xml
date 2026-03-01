@@ -36,11 +36,12 @@ GitHub: https://github.com/sprkem/FS25_FollowingBirds
     </description>
     <extraSourceFiles>
         <sourceFile filename="src/BirdManager.lua"/>
+        <sourceFile filename="src/GridFeedingZones.lua"/>
         <sourceFile filename="src/CurvedPathPlanner.lua"/>
         <sourceFile filename="src/BirdStateMachine.lua"/>
         <sourceFile filename="src/BirdConfig.lua"/>
         <sourceFile filename="src/SimpleBirdDirect.lua"/>
-        <sourceFile filename="src/ToolBirdHotspotDirect.lua"/>
+        <sourceFile filename="src/ToolBirdFlockManager.lua"/>
         <sourceFile filename="src/ToolBirdsExtension.lua"/>
         <sourceFile filename="src/extensions/PlowExtension.lua"/>
         <sourceFile filename="src/extensions/CultivatorExtension.lua"/>

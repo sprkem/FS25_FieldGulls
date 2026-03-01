@@ -12,14 +12,14 @@ SimpleBirdDirect.dir = g_currentModDirectory
 ---
 -- Create a new SimpleBirdDirect instance
 -- @param x, y, z: Initial position
--- @param hotspot: Reference to the hotspot managing this bird
+-- @param manager: Reference to the bird flock manager
 -- @return SimpleBirdDirect instance or nil on failure
 ---
-function SimpleBirdDirect.new(x, y, z, hotspot)
+function SimpleBirdDirect.new(x, y, z, manager)
     local self = {}
     setmetatable(self, SimpleBirdDirect_mt)
 
-    self.hotspot = hotspot
+    self.manager = manager
     self.isDespawning = false
     self.despawnStartTime = 0
 
@@ -400,7 +400,7 @@ function SimpleBirdDirect:update(dt)
             self.usingCurvedPath = false
             self.curvedPath = nil
 
-            -- Notify state machine or hotspot that we reached the target
+            -- Notify state machine or flock manager that we reached the target
             -- State machine will handle what to do next
             return
         end
