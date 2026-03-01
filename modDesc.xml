@@ -12,30 +12,31 @@
         <en><![CDATA[Following Birds
 
 Birds will follow plows and other implements while they are working.
-Seagulls spawn behind the plow and fly to the freshly worked soil.
+Seagulls spawn behind the tool and fly to the freshly worked soil.
 
 Features:
 - Birds follow plows while working
-- Up to 20 birds per plow
+- Up to 20 birds per implement
 - Realistic bird behavior with state machine lifecycle
 - Natural curved flight paths for realistic movement
 - Birds spawn 50m behind at 40m height
-- Birds approach plow, feed on ground, fly up and down
+- Birds approach tool, feed on ground, fly up and down
 - Smooth despawning when work stops
 - Direct i3d management for better performance
+- Extensible design for adding more tool types
 
 ]]>
         </en>
         <de><![CDATA[Folgende Vögel
 
-Vögel folgen Pflügen und anderen Geräten während der Arbeit.
+Vögel folgen Pflügen, Kultivatoren und anderen Geräten während der Arbeit.
 Realistische Vogelbewegungen mit natürlichen Flugkurven.
 
 ]]>
         </de>
         <fr><![CDATA[Oiseaux Suivants
 
-Les oiseaux suivent les charrues pendant qu'elles travaillent.
+Les oiseaux suivent les charrues, cultivateurs et autres outils pendant qu'ils travaillent.
 Mouvements d'oiseaux réalistes avec des courbes de vol naturelles.
 
 ]]>
@@ -44,9 +45,11 @@ Mouvements d'oiseaux réalistes avec des courbes de vol naturelles.
     <extraSourceFiles>
         <sourceFile filename="src/CurvedPathPlanner.lua"/>
         <sourceFile filename="src/BirdStateMachine.lua"/>
+        <sourceFile filename="src/BirdConfig.lua"/>
         <sourceFile filename="src/SimpleBirdDirect.lua"/>
-        <sourceFile filename="src/PlowBirdHotspotDirect.lua"/>
-        <sourceFile filename="src/PlowBirdsExtension.lua"/>
+        <sourceFile filename="src/ToolBirdHotspotDirect.lua"/>
+        <sourceFile filename="src/ToolBirdsExtension.lua"/>
+        <sourceFile filename="src/extensions/PlowExtension.lua"/>
     </extraSourceFiles>
     <multiplayer supported="true"/>
 </modDesc>

@@ -1,25 +1,26 @@
 ---
--- PlowBirdHotspotDirect
--- Uses SimpleBirdDirect (direct i3d management) instead of wildlife system
+-- ToolBirdHotspotDirect
+-- Generic bird hotspot for various tool types (plow, cultivator, etc.)
 ---
 
-PlowBirdHotspotDirect = {}
-local PlowBirdHotspotDirect_mt = Class(PlowBirdHotspotDirect)
+ToolBirdHotspotDirect = {}
+local ToolBirdHotspotDirect_mt = Class(ToolBirdHotspotDirect)
 
 -- Configuration
-PlowBirdHotspotDirect.HOTSPOT_RADIUS = 5              -- Radius around the plow where birds gather (meters)
-PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 2       -- How far behind the plow to position the hotspot (meters)
-PlowBirdHotspotDirect.MAX_BIRDS = 20                  -- Maximum number of birds around the plow
-PlowBirdHotspotDirect.UPDATE_INTERVAL = 50            -- Update hotspot position every 50ms (20 times per second)
-PlowBirdHotspotDirect.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
-PlowBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN = 40 -- Birds spawn 40m above terrain
+ToolBirdHotspotDirect.HOTSPOT_RADIUS = 5              -- Radius around the tool where birds gather (meters)
+ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 2       -- How far behind the tool to position the hotspot (meters)
+ToolBirdHotspotDirect.MAX_BIRDS = 20                  -- Maximum number of birds around the tool
+ToolBirdHotspotDirect.UPDATE_INTERVAL = 50            -- Update hotspot position every 50ms (20 times per second)
+ToolBirdHotspotDirect.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
+ToolBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN = 40 -- Birds spawn 40m above terrain
 
 ---
--- Get the working width of the plow from its work areas
--- @param vehicle: The plow vehicle
+-- Get the working width of the tool from its work areas
+-- @param vehicle: The vehicle with tool
+-- @param workAreaType: The work area type to search for
 -- @return width in meters, or 5.0 as default
 ---
-function PlowBirdHotspotDirect.getPlowWorkingWidth(vehicle)
+function ToolBirdHotspotDirect.getToolWorkingWidth(vehicle, workAreaType)
     if not vehicle or not vehicle.spec_workArea then
         return 5.0 -- Default fallback
     end
@@ -29,9 +30,9 @@ function PlowBirdHotspotDirect.getPlowWorkingWidth(vehicle)
         return 5.0
     end
 
-    -- Get the first plow work area
+    -- Get the first work area of the specified type
     for _, workArea in ipairs(workAreas) do
-        if workArea.type == WorkAreaType.PLOW and workArea.start and workArea.width then
+        if workArea.type == workAreaType and workArea.start and workArea.width then
             local x1, _, z1 = getWorldTranslation(workArea.start)
             local x2, _, z2 = getWorldTranslation(workArea.width)
             local width = math.sqrt((x2 - x1) ^ 2 + (z2 - z1) ^ 2)
@@ -39,55 +40,57 @@ function PlowBirdHotspotDirect.getPlowWorkingWidth(vehicle)
         end
     end
 
-    return 5.0 -- Fallback if no plow work area found
+    return 5.0 -- Fallback if no work area found
 end
 
 ---
--- Create a new PlowBirdHotspotDirect instance
--- @param plowVehicle: The plow vehicle this hotspot follows
--- @return PlowBirdHotspotDirect instance
+-- Create a new ToolBirdHotspotDirect instance
+-- @param vehicle: The vehicle this hotspot follows
+-- @param workAreaType: The work area type enum
+-- @return ToolBirdHotspotDirect instance
 ---
-function PlowBirdHotspotDirect.new(plowVehicle)
-    local self = setmetatable({}, PlowBirdHotspotDirect_mt)
+function ToolBirdHotspotDirect.new(vehicle, workAreaType)
+    local self = setmetatable({}, ToolBirdHotspotDirect_mt)
 
-    self.plowVehicle = plowVehicle
+    self.vehicle = vehicle
+    self.workAreaType = workAreaType
     self.worldX = 0
     self.worldY = -200 -- Start below ground (inactive)
     self.worldZ = 0
-    self.radius = PlowBirdHotspotDirect.HOTSPOT_RADIUS
+    self.radius = ToolBirdHotspotDirect.HOTSPOT_RADIUS
     self.spawnedBirds = {}    -- Track our spawned birds
     self.despawningBirds = {} -- Track birds that are flying away
     self.isActive = false
     self.lastUpdateTime = 0
-    self.lastBirdUpdateTime = 0                                                -- For updating bird movement targets
-    self.movementDirection = 0                                                 -- Direction the plow is moving
-    self.birdsSpawned = false                                                  -- Track if initial birds have been spawned
-    self.workingWidth = PlowBirdHotspotDirect.getPlowWorkingWidth(plowVehicle) -- Cache the working width
+    self.lastBirdUpdateTime = 0                                           -- For updating bird movement targets
+    self.movementDirection = 0                                            -- Direction the tool is moving
+    self.birdsSpawned = false                                             -- Track if initial birds have been spawned
+    self.workingWidth = ToolBirdHotspotDirect.getToolWorkingWidth(vehicle, workAreaType) -- Cache the working width
 
     return self
 end
 
 ---
--- Activate the hotspot at the plow's current position
+-- Activate the hotspot at the tool's current position
 -- @return true if activated successfully
 ---
-function PlowBirdHotspotDirect:activate()
-    if not self.plowVehicle or self.isActive then
+function ToolBirdHotspotDirect:activate()
+    if not self.vehicle or self.isActive then
         return false
     end
 
-    -- Get plow position
-    local plowX, plowY, plowZ = getWorldTranslation(self.plowVehicle.rootNode)
+    -- Get vehicle position
+    local vehicleX, vehicleY, vehicleZ = getWorldTranslation(self.vehicle.rootNode)
 
-    -- Initialize movement direction (assume plow is moving forward)
-    local dx, _, dz = localDirectionToWorld(self.plowVehicle.rootNode, 0, 0, 1)
+    -- Initialize movement direction (assume tool is moving forward)
+    local dx, _, dz = localDirectionToWorld(self.vehicle.rootNode, 0, 0, 1)
     self.movementDirection = math.atan2(dx, dz)
 
-    -- Position hotspot behind the plow from the start
+    -- Position hotspot behind the tool from the start
     local behindAngle = self.movementDirection + math.pi
-    self.worldX = plowX + math.sin(behindAngle) * PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
-    self.worldY = plowY
-    self.worldZ = plowZ + math.cos(behindAngle) * PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldX = vehicleX + math.sin(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldY = vehicleY
+    self.worldZ = vehicleZ + math.cos(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
     self.isActive = true
     self.lastUpdateTime = g_time
     self.birdsSpawned = false
@@ -98,16 +101,16 @@ end
 ---
 -- Deactivate the hotspot
 ---
-function PlowBirdHotspotDirect:deactivate()
+function ToolBirdHotspotDirect:deactivate()
     self.isActive = false
     self.worldY = -200 -- Move below ground
 end
 
 ---
--- Update hotspot position to follow the plow
+-- Update hotspot position to follow the tool
 -- @param dt: Delta time in milliseconds
 ---
-function PlowBirdHotspotDirect:update(dt)
+function ToolBirdHotspotDirect:update(dt)
     -- ALWAYS update and cleanup despawning birds (even if inactive)
     for i = #self.despawningBirds, 1, -1 do
         local bird = self.despawningBirds[i]
@@ -128,7 +131,7 @@ function PlowBirdHotspotDirect:update(dt)
         return -- Fully inactive, nothing to update
     end
 
-    if not self.isActive or not self.plowVehicle then
+    if not self.isActive or not self.vehicle then
         return -- Only update despawning birds above
     end
 
@@ -141,45 +144,45 @@ function PlowBirdHotspotDirect:update(dt)
     end
 
     -- Update hotspot position periodically (not every frame for performance)
-    if g_time - self.lastUpdateTime < PlowBirdHotspotDirect.UPDATE_INTERVAL then
+    if g_time - self.lastUpdateTime < ToolBirdHotspotDirect.UPDATE_INTERVAL then
         return
     end
 
     self.lastUpdateTime = g_time
 
-    -- Get current plow position and direction
-    local plowX, plowY, plowZ = getWorldTranslation(self.plowVehicle.rootNode)
+    -- Get current tool position and direction
+    local vehicleX, vehicleY, vehicleZ = getWorldTranslation(self.vehicle.rootNode)
 
-    -- Get the plow's current facing direction
-    local dx, _, dz = localDirectionToWorld(self.plowVehicle.rootNode, 0, 0, 1)
+    -- Get the tool's current facing direction
+    local dx, _, dz = localDirectionToWorld(self.vehicle.rootNode, 0, 0, 1)
     self.movementDirection = math.atan2(dx, dz)
 
-    -- Position hotspot behind the plow in the worked area
+    -- Position hotspot behind the tool in the worked area
     local behindAngle = self.movementDirection + math.pi -- Opposite direction
-    self.worldX = plowX + math.sin(behindAngle) * PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
-    self.worldY = plowY
-    self.worldZ = plowZ + math.cos(behindAngle) * PlowBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldX = vehicleX + math.sin(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldY = vehicleY
+    self.worldZ = vehicleZ + math.cos(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
 end
 
 ---
 -- Spawn initial set of birds at this hotspot
 ---
-function PlowBirdHotspotDirect:spawnInitialBirds()
+function ToolBirdHotspotDirect:spawnInitialBirds()
     if self.birdsSpawned or not self.isActive then
         return false
     end
 
     -- Spawn birds spread perpendicular to movement direction, 50m behind, 40m up
     local totalSpawned = 0
-    for i = 1, PlowBirdHotspotDirect.MAX_BIRDS do
+    for i = 1, ToolBirdHotspotDirect.MAX_BIRDS do
         -- Calculate perpendicular angle (90 degrees to movement direction)
         local perpAngle = self.movementDirection + math.pi / 2
 
-        -- Spread birds along perpendicular axis based on plow working width
-        local lateralOffset = (i / PlowBirdHotspotDirect.MAX_BIRDS - 0.5) * self.workingWidth * 1.5
+        -- Spread birds in a wide 35m radius for initial spawn
+        local lateralOffset = (i / ToolBirdHotspotDirect.MAX_BIRDS - 0.5) * 35.0
 
         -- Calculate spawn position: hotspot + lateral offset perpendicular + 50m backward
-        local longitudinalOffset = PlowBirdHotspotDirect.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
+        local longitudinalOffset = ToolBirdHotspotDirect.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
 
         local spawnX = self.worldX + math.sin(perpAngle) * lateralOffset -
             math.sin(self.movementDirection) * longitudinalOffset
@@ -188,9 +191,8 @@ function PlowBirdHotspotDirect:spawnInitialBirds()
 
         -- Spawn at terrain height + 40m
         local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, spawnX, 0, spawnZ)
-        local spawnY = terrainY + PlowBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN +
-            (math.random() - 0.5) *
-            5                     -- ±2.5m variation
+        local spawnY = terrainY + ToolBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN +
+            (math.random() - 0.5) * 5 -- ±2.5m variation
 
         -- Create a SimpleBirdDirect (has built-in state machine)
         local bird = SimpleBirdDirect.new(spawnX, spawnY, spawnZ, self)
@@ -210,7 +212,7 @@ end
 ---
 -- Clean up all birds spawned by this hotspot
 ---
-function PlowBirdHotspotDirect:cleanup()
+function ToolBirdHotspotDirect:cleanup()
     -- Request each bird to enter despawn state via state machine
     local despawnCount = 0
     for i, bird in ipairs(self.spawnedBirds) do
@@ -238,7 +240,7 @@ end
 -- Get the number of active birds in this hotspot
 -- @return number of birds
 ---
-function PlowBirdHotspotDirect:getNumBirds()
+function ToolBirdHotspotDirect:getNumBirds()
     return #self.spawnedBirds
 end
 
@@ -246,6 +248,6 @@ end
 -- Check if hotspot is active
 -- @return boolean
 ---
-function PlowBirdHotspotDirect:getIsActive()
+function ToolBirdHotspotDirect:getIsActive()
     return self.isActive
 end

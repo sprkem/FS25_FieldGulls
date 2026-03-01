@@ -3,7 +3,6 @@
     <name>seagull</name>
     <asset filename="seagull/SeagullBigScale.i3d" modName="FS25_FollowingBirds" />
     <animation type="animCharSet" animCharSetNode="0" shapeNode="2" shaderNode="0|0">
-        <!-- Frame-based animations from SeagullBigScale.i3d -->
         <!-- Flying animations (flapping) -->
         <animation stateName="fly" startFrame="135" endFrame="155" speed="1.0" transitionTime="0.15" />
         <animation stateName="flyUp" startFrame="235" endFrame="255" speed="1.0" transitionTime="0.15" />

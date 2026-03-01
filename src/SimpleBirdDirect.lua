@@ -1,7 +1,8 @@
 ---
 -- SimpleBirdDirect: Direct i3d management without wildlife system
 -- Loads bird i3d directly and manages movement manually
--- Now with state machine and curved path support
+-- Uses state machine and curved path support
+-- Only supports AnimCharSet with frame-based animations
 ---
 
 SimpleBirdDirect = {}
@@ -9,57 +10,11 @@ local SimpleBirdDirect_mt = Class(SimpleBirdDirect)
 SimpleBirdDirect.dir = g_currentModDirectory
 
 ---
--- Load bird attributes from XML file
--- @param xmlFile: XML file handle (from loadXMLFile)
--- @param key: Base XML key path
--- @return attributes table with filename, nodeIndex, shaderNodeIndex, and animations
+-- Create a new SimpleBirdDirect instance
+-- @param x, y, z: Initial position
+-- @param hotspot: Reference to the hotspot managing this bird
+-- @return SimpleBirdDirect instance or nil on failure
 ---
-function SimpleBirdDirect.loadAttributesFromXML(xmlFile, key)
-    -- Load basic asset info
-    local filename = getXMLString(xmlFile, key .. ".asset#filename")
-    local modName = getXMLString(xmlFile, key .. ".asset#modName")
-
-    -- Construct full path: if modName is specified, use DLC mod directory
-    if modName and modName ~= "" and g_modNameToDirectory and g_modNameToDirectory[modName] then
-        filename = g_modNameToDirectory[modName] .. filename
-    end
-
-    local attributes = {
-        filename = filename,
-        nodeIndex = getXMLString(xmlFile, key .. ".asset#node"),
-        shapeNodeIndex = getXMLString(xmlFile, key .. ".animation#shapeNode"),
-        shaderNodeIndex = getXMLString(xmlFile, key .. ".animation#shaderNode"),
-        animCharSetNode = getXMLString(xmlFile, key .. ".animation#animCharSetNode"),
-        animations = {},
-        -- Behavior settings (with defaults)
-        groundIdleTimeMin = getXMLFloat(xmlFile, key .. ".behavior#groundIdleTimeMin") or 0.5,
-        groundIdleTimeMax = getXMLFloat(xmlFile, key .. ".behavior#groundIdleTimeMax") or 2.0
-    }
-
-    -- Load all animation definitions (supports opcode, clipName, or frame range)
-    local x = 0
-    while true do
-        local animKey = string.format("%s.animation.animation(%d)", key, x)
-        if not hasXMLProperty(xmlFile, animKey) then
-            break
-        end
-
-        local stateName = getXMLString(xmlFile, animKey .. "#stateName")
-        local anim = {
-            name = stateName,
-            opcode = getXMLInt(xmlFile, animKey .. "#opcode"),
-            clipName = getXMLString(xmlFile, animKey .. "#clipName"),
-            speed = getXMLFloat(xmlFile, animKey .. "#speed"),
-            transitionTime = getXMLFloat(xmlFile, animKey .. "#transitionTime") * 1000,
-            startFrame = getXMLInt(xmlFile, animKey .. "#startFrame"),
-            endFrame = getXMLInt(xmlFile, animKey .. "#endFrame")
-        }
-        attributes.animations[stateName] = anim
-        x = x + 1
-    end
-    return attributes
-end
-
 function SimpleBirdDirect.new(x, y, z, hotspot)
     local self = {}
     setmetatable(self, SimpleBirdDirect_mt)
@@ -92,12 +47,12 @@ function SimpleBirdDirect.new(x, y, z, hotspot)
 
     -- Visual node (will be loaded async)
     self.visualNode = nil
-    self.shaderNode = nil
+    self.sceneNode = nil
     self.animCharSet = nil
     self.isLoading = false
     self.loadRequestId = nil
 
-    -- Animation state tracking
+    -- Animation state tracking (frame-based only)
     self.currentAnimName = nil
     self.pendingAnimName = nil  -- Animation to apply once model loads
     self.animationTime = 0  -- Current time within animation (MILLISECONDS)
@@ -106,16 +61,11 @@ function SimpleBirdDirect.new(x, y, z, hotspot)
     self.animationSpeed = 1.0  -- Playback speed
     self.clipDuration = 0  -- Total clip duration (MILLISECONDS)
 
-    -- Load bird attributes from XML (no schema needed with old-style API)
-    local xmlFilename = Utils.getFilename("data/seagull.xml", SimpleBirdDirect.dir)
-    local xmlFile = loadXMLFile("BirdSpeciesTemp", xmlFilename)
-
-
-    if xmlFile and xmlFile ~= 0 then
-        self.attributes = SimpleBirdDirect.loadAttributesFromXML(xmlFile, "species")
-        delete(xmlFile)
-    else
-        self.attributes = nil
+    -- Get bird attributes from shared config
+    self.attributes = BirdConfig.getConfig()
+    if not self.attributes then
+        print("[SimpleBirdDirect] ERROR: Failed to load bird configuration")
+        delete(self.rootNode)
         return nil
     end
 
@@ -125,10 +75,12 @@ function SimpleBirdDirect.new(x, y, z, hotspot)
     -- Start loading the bird model
     self:loadVisualModel()
 
-
     return self
 end
 
+---
+-- Load the bird visual model asynchronously
+---
 function SimpleBirdDirect:loadVisualModel()
     if self.isLoading then
         return
@@ -136,7 +88,7 @@ function SimpleBirdDirect:loadVisualModel()
 
     self.isLoading = true
 
-    -- Use filename from attributes (loaded from XML or fallback)
+    -- Use filename from attributes (loaded from shared config)
     local modelPath = self.attributes.filename
 
     -- Using async loading for better performance
@@ -150,10 +102,17 @@ function SimpleBirdDirect:loadVisualModel()
     )
 end
 
+---
+-- Callback when bird model is loaded
+-- @param i3dNode: Loaded i3d node
+-- @param failedReason: Error code if loading failed
+-- @param args: Additional arguments
+---
 function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
     self.isLoading = false
 
     if failedReason ~= 0 then
+        print("[SimpleBirdDirect] ERROR: Failed to load bird model, reason: " .. tostring(failedReason))
         return
     end
 
@@ -165,13 +124,14 @@ function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
         if self.attributes.nodeIndex then
             sceneNode = I3DUtil.indexToObject(i3dNode, self.attributes.nodeIndex)
             if not sceneNode or sceneNode == 0 then
+                print("[SimpleBirdDirect] ERROR: Failed to find node at index: " .. tostring(self.attributes.nodeIndex))
                 delete(i3dNode)
                 return
             end
             needsDelete = true -- Only delete if we extracted a sub-node
         end
 
-        -- Find the AnimCharSet node (skeleton root) and shape node BEFORE any modifications
+        -- Find the AnimCharSet node (skeleton root) BEFORE any modifications
         local animCharSetNode = nil
         if self.attributes.animCharSetNode then
             animCharSetNode = I3DUtil.indexToObject(i3dNode, self.attributes.animCharSetNode)
@@ -208,67 +168,19 @@ function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
     end
 end
 
+---
+-- Get current world position of the bird
+-- @return x, y, z: Current position
+---
 function SimpleBirdDirect:getCurrentPosition()
     return getWorldTranslation(self.rootNode)
-end
-
----
--- Setup animations - try shader-based first, fall back to AnimCharSet
--- @param animNode: The node containing the AnimCharSet or shader system
----
-function SimpleBirdDirect:setupAnimations(animNode)
-    if not animNode or animNode == 0 then
-        return
-    end
-
-    -- Check if we have opcode-based animations (shader system)
-    local hasOpcodes = false
-    for _, animData in pairs(self.attributes.animations) do
-        if animData.opcode then
-            hasOpcodes = true
-            break
-        end
-    end
-
-    -- Try shader-based animations first (opcode system)
-    if hasOpcodes then
-        self:setupShaderAnimations(animNode)
-    else
-        -- Fall back to AnimCharSet system
-        self:setupAnimCharSetAnimations(animNode)
-    end
-end
-
----
--- Setup shader-based animations (opcode system)
----
-function SimpleBirdDirect:setupShaderAnimations(birdNode)
-    -- Get shader node from loaded attributes
-    self.shaderNode = I3DUtil.indexToObject(birdNode, self.attributes.shaderNodeIndex)
-
-    if not self.shaderNode or self.shaderNode == 0 then
-        return
-    end
-
-    -- Set animation offset for variety
-    setShaderParameter(self.shaderNode, "animOffset", math.random(), nil, nil, nil, false)
-
-    -- Start with the animation appropriate for current state (or fly as default)
-    local animName = "fly"
-    if self.pendingAnimName then
-        animName = self.pendingAnimName
-        self.pendingAnimName = nil
-    elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
-        animName = self.stateMachine:getCurrentStateAnimation()
-    end
-    self:setAnimationByName(animName)
 end
 
 ---
 -- Setup AnimCharacterSet animations (skeletal animations)
 -- @param animNode: The node containing the AnimCharacterSet
 ---
-function SimpleBirdDirect:setupAnimCharSetAnimations(animNode)
+function SimpleBirdDirect:setupAnimations(animNode)
     if not animNode or animNode == 0 then
         return
     end
@@ -278,42 +190,20 @@ function SimpleBirdDirect:setupAnimCharSetAnimations(animNode)
     if testAnimCharSet and testAnimCharSet ~= 0 then
         self.animCharSet = testAnimCharSet
     else
+        print("[SimpleBirdDirect] WARNING: No AnimCharacterSet found on node")
         return
     end
 
-    -- Check if we're using named clips or frame-based animations
-    local usingNamedClips = false
-    local usingFrameBased = false
-
-    for stateName, animData in pairs(self.attributes.animations) do
-        if animData.clipName then
-            usingNamedClips = true
-        elseif animData.startFrame or animData.endFrame then
-            usingFrameBased = true
-        end
+    -- Start with the animation appropriate for current state (or fly as default)
+    local animName = "fly"
+    if self.pendingAnimName then
+        animName = self.pendingAnimName
+        self.pendingAnimName = nil
+    elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
+        animName = self.stateMachine:getCurrentStateAnimation()
     end
-
-    if usingNamedClips then
-        -- Start with the animation appropriate for current state (or fly as default)
-        local animName = "fly"
-        if self.pendingAnimName then
-            animName = self.pendingAnimName
-            self.pendingAnimName = nil
-        elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
-            animName = self.stateMachine:getCurrentStateAnimation()
-        end
-        self:setAnimationByName(animName)
-    elseif usingFrameBased then
-        -- Start with pending animation or current state animation
-        local animName = "fly"
-        if self.pendingAnimName then
-            animName = self.pendingAnimName
-            self.pendingAnimName = nil
-        elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
-            animName = self.stateMachine:getCurrentStateAnimation()
-        end
-        self:setAnimationByName(animName)
-    end
+    
+    self:setAnimationByName(animName)
 end
 
 ---
@@ -327,20 +217,13 @@ function SimpleBirdDirect:setAnimationByName(animationName)
     end
     
     -- If model not loaded yet, store as pending animation
-    if not self.shaderNode and not self.animCharSet then
+    if not self.animCharSet then
         self.pendingAnimName = animationName
         return
     end
 
-    -- Shader-based animation (opcode system)
-    if self.shaderNode then
-        -- Set animation opcode and speed
-        setShaderParameter(self.shaderNode, "indicesAndBlend", anim.opcode, 0, 0, 0, false)
-        setShaderParameter(self.shaderNode, "speeds", anim.speed, 0, 0, 0, false)
-        self.currentAnimName = animationName
-        
     -- AnimCharacterSet animation - use frame-based manual scrubbing
-    elseif self.animCharSet and entityExists(self.animCharSet) then
+    if self.animCharSet and entityExists(self.animCharSet) then
         if anim.startFrame and anim.endFrame then
             -- Get clip duration and calculate ms per frame (24 FPS = 41.67ms/frame)
             self.clipDuration = getAnimClipDuration(self.animCharSet, 0)
@@ -366,16 +249,6 @@ function SimpleBirdDirect:setAnimationByName(animationName)
             enableAnimTrack(self.animCharSet, 0)
             setAnimTrackTime(self.animCharSet, 0, startTimeMs, true)
             disableAnimTrack(self.animCharSet, 0)
-        elseif anim.clipName then
-            local clipIndex = getAnimClipIndex(self.animCharSet, anim.clipName)
-            if clipIndex >= 0 then
-                clearAnimTrackClip(self.animCharSet, 0)
-                assignAnimTrackClip(self.animCharSet, 0, clipIndex)
-                setAnimTrackLoopState(self.animCharSet, 0, true)
-                setAnimTrackTime(self.animCharSet, 0, 0, true)
-                enableAnimTrack(self.animCharSet, 0)
-                self.currentAnimName = animationName
-            end
         end
     end
 end

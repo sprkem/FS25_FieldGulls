@@ -153,10 +153,10 @@ function BirdStateMachine:enterApproachingPlowState()
     local targetX = hotspot.worldX
     local targetZ = hotspot.worldZ
 
-    -- Target is 10m away from plow (stopping distance)
+    -- Target is near the plow area (consistent with feeding loop)
     -- Add some randomness for natural variation
     local randomAngle = math.random() * math.pi * 2
-    local randomRadius = 5.0 + math.random() * 5.0 -- 5-10m from plow
+    local randomRadius = math.random() * self.feedingConfig.downwardTargetRadius -- 0-5m from plow (same as feeding)
 
     targetX = targetX + math.sin(randomAngle) * randomRadius
     targetZ = targetZ + math.cos(randomAngle) * randomRadius
