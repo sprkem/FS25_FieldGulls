@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" standalone="no" ?>
 <species>
     <name>seagull</name>
-    <asset filename="seagull/SeagullBigScale.i3d" modName="FS25_FollowingBirds" />
+    <asset filename="seagull/SeagullBigScale.i3d" modName="FS25_FieldGulls" />
     <animation type="animCharSet" animCharSetNode="0" shapeNode="2" shaderNode="0|0">
         <animation stateName="fly" startFrame="135" endFrame="155" speed="1.0" transitionTime="0.15" />
         <animation stateName="flyUp" startFrame="235" endFrame="255" speed="1.0" transitionTime="0.15" />

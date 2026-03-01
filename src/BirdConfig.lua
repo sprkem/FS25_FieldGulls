@@ -22,6 +22,9 @@ function BirdConfig.loadAttributesFromXML(xmlFile, key)
     -- Construct full path: if modName is specified, use DLC mod directory
     if modName and modName ~= "" and g_modNameToDirectory and g_modNameToDirectory[modName] then
         filename = g_modNameToDirectory[modName] .. filename
+    else
+        -- Fallback: use BirdConfig.dir if modName lookup fails
+        filename = BirdConfig.dir .. filename
     end
 
     local attributes = {
