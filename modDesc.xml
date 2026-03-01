@@ -2,14 +2,14 @@
 <modDesc descVersion="106">
     <author>Ozz</author>
     <version>1.0.0.0</version>
-    <iconFilename>icon_FollowingBirds.dds</iconFilename>
+    <iconFilename>icon_FieldGulls.dds</iconFilename>
     <title>
-        <en>Following Birds</en>
-        <de>Folgende Vögel</de>
-        <fr>Oiseaux Suivants</fr>
+        <en>Field Gulls</en>
+        <de>Feldmöwen</de>
+        <fr>Mouettes de Champ</fr>
     </title>
     <description>
-        <en><![CDATA[Following Birds
+        <en><![CDATA[Field Gulls
 
 A mod to add gulls that follow you and eat from the ground when plowing or using similar tools.
 
@@ -17,7 +17,7 @@ GitHub: https://github.com/sprkem/FS25_FollowingBirds
 
 ]]>
         </en>
-        <de><![CDATA[Folgende Vögel
+        <de><![CDATA[Feldmöwen
 
 Ein Mod, der Möwen hinzufügt, die Ihnen folgen und vom Boden fressen, wenn Sie pflügen oder ähnliche Werkzeuge verwenden.
 
@@ -25,7 +25,7 @@ GitHub: https://github.com/sprkem/FS25_FollowingBirds
 
 ]]>
         </de>
-        <fr><![CDATA[Oiseaux Suivants
+        <fr><![CDATA[Mouettes de Champ
 
 Un mod pour ajouter des mouettes qui vous suivent et se nourrissent du sol lorsque vous labourez ou utilisez des outils similaires.
 
