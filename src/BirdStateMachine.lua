@@ -147,9 +147,12 @@ function BirdStateMachine:enterApproachingPlowState()
     local targetX = currentX
     local targetZ = currentZ
 
+    -- Check if vehicle is moving
+    local isMoving = self:isVehicleMoving()
+
     -- Request a feeding target from the central grid system
     if g_gridFeedingZones then
-        local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ)
+        local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ, isMoving)
         if cellTargetX and cellTargetZ then
             targetX = cellTargetX
             targetZ = cellTargetZ
@@ -380,9 +383,12 @@ function BirdStateMachine:requestTargetAndDive()
     local targetX = currentX
     local targetZ = currentZ
 
+    -- Check if vehicle is moving
+    local isMoving = self:isVehicleMoving()
+
     -- Request a feeding target from the central grid system
     if g_gridFeedingZones then
-        local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ)
+        local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ, isMoving)
         if cellTargetX and cellTargetZ then
             targetX = cellTargetX
             targetZ = cellTargetZ
@@ -477,6 +483,30 @@ end
 ---
 function BirdStateMachine:isDespawning()
     return self.currentState == BirdStateMachine.STATE_DESPAWNING
+end
+
+---
+-- Check if the vehicle is currently moving
+-- @return boolean: True if moving (speed > 0.5 km/h), false if stopped or no vehicle
+---
+function BirdStateMachine:isVehicleMoving()
+    -- Check if we have access to the vehicle through the bird's manager
+    if not self.bird or not self.bird.manager or not self.bird.manager.vehicle then
+        return true -- Default to true (assume moving) if we can't check
+    end
+    
+    local vehicle = self.bird.manager.vehicle
+    
+    -- Check vehicle's lastSpeedReal (in m/s) or lastSpeed (in km/h)
+    if vehicle.lastSpeedReal then
+        -- Speed in m/s - consider moving if > 0.14 m/s (~0.5 km/h)
+        return vehicle.lastSpeedReal > 0.14
+    elseif vehicle.lastSpeed then
+        -- Speed in km/h - consider moving if > 0.5 km/h
+        return vehicle.lastSpeed > 0.5
+    end
+    
+    return true -- Default to true if we can't determine speed
 end
 
 ---

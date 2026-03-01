@@ -7,7 +7,7 @@ GridFeedingZones = {}
 local GridFeedingZones_mt = Class(GridFeedingZones)
 
 -- Configuration
-GridFeedingZones.GRID_SIZE = 1          -- 1m x 1m grid cells
+GridFeedingZones.GRID_SIZE = 2          -- 2m x 2m grid cells
 GridFeedingZones.CELL_EXPIRE_TIME = 30000 -- Cells expire after 30 seconds (ms)
 
 ---
@@ -173,9 +173,10 @@ end
 ---
 -- Request a feeding target for a bird (centralized selection system)
 -- @param birdX, birdZ: Bird's current world position
+-- @param isMoving: Boolean indicating if the vehicle/plow is currently moving
 -- @return targetX, targetZ: Random position in selected cell, or nil if no cells available
 ---
-function GridFeedingZones:requestFeedingTarget(birdX, birdZ)
+function GridFeedingZones:requestFeedingTarget(birdX, birdZ, isMoving)
     -- No cells available
     if #self.cellsByTimestamp == 0 then
         return nil, nil
@@ -186,16 +187,44 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ)
     -- 70% chance: Pick randomly from top 10 most recent cells
     -- 30% chance: Pick weighted by inverse distance
     if math.random() < 0.70 then
-        -- Pick randomly from newest 10 cells (or all if fewer than 10)
-        local recentCount = math.min(10, #self.cellsByTimestamp)
-        local randomIndex = math.random(1, recentCount)
+        -- If vehicle is NOT moving, skip first 10 cells and pick from next 10
+        -- This prevents birds from landing directly on the stopped vehicle
+        local startIndex = 1
+        if isMoving == false then
+            startIndex = 11
+        end
+        
+        -- Check if we have enough cells available
+        if startIndex > #self.cellsByTimestamp then
+            -- Not enough cells - return nil to indicate no valid target
+            return nil, nil
+        end
+        
+        -- Pick randomly from the appropriate range (10 cells starting from startIndex)
+        local endIndex = math.min(startIndex + 9, #self.cellsByTimestamp)
+        
+        local randomIndex = math.random(startIndex, endIndex)
         selectedCell = self.cellsByTimestamp[randomIndex]
     else
         -- Distance-weighted strategy: favor closer cells
+        -- If vehicle is NOT moving, skip first 10 cells (same as above)
+        local startIndex = 1
+        if isMoving == false then
+            startIndex = 11
+        end
+        
+        -- Check if we have enough cells available
+        if startIndex > #self.cellsByTimestamp then
+            -- Not enough cells - return nil to indicate no valid target
+            return nil, nil
+        end
+        
         local weights = {}
         local totalWeight = 0
         
-        for i, cell in ipairs(self.cellsByTimestamp) do
+        -- Only consider cells from startIndex onwards
+        for i = startIndex, #self.cellsByTimestamp do
+            local cell = self.cellsByTimestamp[i]
             local dx = cell.gridX - birdX
             local dz = cell.gridZ - birdZ
             local distanceSq = dx * dx + dz * dz
@@ -212,18 +241,25 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ)
         local randomValue = math.random() * totalWeight
         local cumulativeWeight = 0
         
-        for i, cell in ipairs(self.cellsByTimestamp) do
-            cumulativeWeight = cumulativeWeight + weights[i]
-            if randomValue <= cumulativeWeight then
-                selectedCell = cell
-                break
+        for i = startIndex, #self.cellsByTimestamp do
+            if weights[i] then
+                cumulativeWeight = cumulativeWeight + weights[i]
+                if randomValue <= cumulativeWeight then
+                    selectedCell = self.cellsByTimestamp[i]
+                    break
+                end
             end
         end
         
-        -- Fallback to last cell if something went wrong
+        -- Fallback: pick first allowable cell if weighted selection failed
         if not selectedCell then
-            selectedCell = self.cellsByTimestamp[#self.cellsByTimestamp]
+            selectedCell = self.cellsByTimestamp[startIndex]
         end
+    end
+    
+    -- Safety check: make sure we have a valid cell
+    if not selectedCell then
+        return nil, nil
     end
     
     -- Get random position within selected cell
