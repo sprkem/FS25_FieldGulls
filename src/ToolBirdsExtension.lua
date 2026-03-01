@@ -19,7 +19,6 @@ function ToolBirdsExtension:initialize(vehicle, workAreaType)
     vehicle.toolBirdsData = {
         hotspot = nil,
         isWorking = false,
-        despawnTimer = 0,
         initialized = true,
         workAreaType = workAreaType
     }
@@ -40,30 +39,22 @@ function ToolBirdsExtension:onUpdate(vehicle, dt, isCurrentlyWorking)
 
     -- Handle state transitions
     if isCurrentlyWorking and not data.isWorking then
-        -- Just started working - activate hotspot
+        -- Just started working - activate hotspot and cancel any despawn timer
         ToolBirdsExtension:activateHotspot(vehicle)
+        if data.hotspot then
+            data.hotspot:cancelDespawnTimer()
+        end
         data.isWorking = true
-        data.despawnTimer = 0
     elseif not isCurrentlyWorking and data.isWorking then
-        -- Just stopped working - start despawn timer
+        -- Just stopped working - start despawn timer on hotspot
         data.isWorking = false
-        data.despawnTimer = ToolBirdHotspotDirect.DESPAWN_DELAY
-    end
-
-    -- Update hotspot position even when inactive (for despawning birds)
-    if data.hotspot then
-        data.hotspot:update(dt)
-    end
-
-    -- Handle despawn timer
-    if not data.isWorking and data.despawnTimer > 0 then
-        data.despawnTimer = data.despawnTimer - dt
-
-        if data.despawnTimer <= 0 then
-            -- Timer expired - cleanup birds
-            ToolBirdsExtension:deactivateHotspot(vehicle)
+        if data.hotspot then
+            data.hotspot:startDespawnTimer()
         end
     end
+
+    -- NOTE: Hotspot updates (including timer countdown) are now handled by BirdManager
+    -- This ensures birds continue updating even when vehicle is optimized/inactive
 end
 
 ---
@@ -100,8 +91,9 @@ function ToolBirdsExtension:deactivateHotspot(vehicle)
         return
     end
 
+    -- Cleanup will be called by hotspot when timer expires
+    -- Just ensure cleanup happens now
     data.hotspot:cleanup()
-    data.despawnTimer = 0
 end
 
 ---
@@ -111,6 +103,12 @@ end
 function ToolBirdsExtension:onDelete(vehicle)
     if vehicle.toolBirdsData and vehicle.toolBirdsData.hotspot then
         ToolBirdsExtension:deactivateHotspot(vehicle)
+        
+        -- Unregister from BirdManager
+        if BirdManager then
+            BirdManager:unregisterHotspot(vehicle)
+        end
+        
         vehicle.toolBirdsData = nil
     end
 end

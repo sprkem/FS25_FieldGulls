@@ -43,6 +43,7 @@ Mouvements d'oiseaux réalistes avec des courbes de vol naturelles.
         </fr>
     </description>
     <extraSourceFiles>
+        <sourceFile filename="src/BirdManager.lua"/>
         <sourceFile filename="src/CurvedPathPlanner.lua"/>
         <sourceFile filename="src/BirdStateMachine.lua"/>
         <sourceFile filename="src/BirdConfig.lua"/>

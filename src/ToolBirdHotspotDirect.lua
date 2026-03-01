@@ -8,7 +8,9 @@ local ToolBirdHotspotDirect_mt = Class(ToolBirdHotspotDirect)
 
 -- Configuration
 ToolBirdHotspotDirect.HOTSPOT_RADIUS = 5              -- Radius around the tool where birds gather (meters)
-ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 1       -- How far behind the tool to position the hotspot (meters)
+ToolBirdHotspotDirect.HOTSPOT_OFFSET_MOVING = 0       -- Offset when tool is moving (meters)
+ToolBirdHotspotDirect.HOTSPOT_OFFSET_STOPPED = 3      -- Offset when tool is stopped (meters)
+ToolBirdHotspotDirect.MOVEMENT_THRESHOLD = 0.1        -- Speed threshold to consider tool "moving" (m/s)
 ToolBirdHotspotDirect.MAX_BIRDS = 60                  -- Maximum number of birds around the tool
 ToolBirdHotspotDirect.UPDATE_INTERVAL = 50            -- Update hotspot position every 50ms (20 times per second)
 ToolBirdHotspotDirect.SPAWN_INTERVAL = 500            -- Spawn one bird every 500ms (instead of all at once)
@@ -73,6 +75,11 @@ function ToolBirdHotspotDirect.new(vehicle, workAreaType)
     self.isDespawning = false                                             -- Track if gradual despawn is in progress
     self.numBirdsDespawned = 0                                            -- Track how many birds marked for despawn
     self.lastDespawnTime = 0                                              -- Track when last bird was despawned
+    self.lastX = 0                                                        -- Track last position for speed calculation
+    self.lastZ = 0                                                        -- Track last position for speed calculation
+    self.isMoving = false                                                 -- Track if vehicle is currently moving
+    self.despawnTimer = 0                                                 -- Timer before starting gradual despawn (milliseconds)
+    self.despawnTimerActive = false                                       -- Whether the despawn timer is counting down
     self.workingWidth = ToolBirdHotspotDirect.getToolWorkingWidth(vehicle, workAreaType) -- Cache the working width
     
     -- Sound management (3D positional audio)
@@ -83,6 +90,11 @@ function ToolBirdHotspotDirect.new(vehicle, workAreaType)
     self.soundStartTime = nil                                             -- When spawning started (for 8s delay)
     self.soundStarted = false                                             -- Track if sound has started
 
+    -- Register with BirdManager for independent updates
+    if BirdManager then
+        BirdManager:registerHotspot(vehicle, self)
+    end
+
     return self
 end
 
@@ -91,7 +103,35 @@ end
 -- @return true if activated successfully
 ---
 function ToolBirdHotspotDirect:activate()
-    if not self.vehicle or self.isActive then
+    if not self.vehicle then
+        return false
+    end
+    
+    -- If despawning is in progress, cancel it (regardless of isActive state)
+    if self.isDespawning then
+        self:cancelDespawnTimer()
+        
+        -- Keep existing birds and resume spawning to reach max
+        self.numBirdsSpawned = #self.spawnedBirds
+        self.birdsSpawned = self.numBirdsSpawned >= ToolBirdHotspotDirect.MAX_BIRDS
+        self.lastSpawnTime = g_time
+        
+        -- Reactivate if we were inactive
+        if not self.isActive then
+            self.isActive = true
+            self.lastUpdateTime = g_time
+            
+            -- Restart sound if needed
+            if not self.soundStarted then
+                self.soundStartTime = g_time
+                self:initializeSound()
+            end
+        end
+        
+        return true
+    end
+    
+    if self.isActive then
         return false
     end
 
@@ -102,11 +142,14 @@ function ToolBirdHotspotDirect:activate()
     local dx, _, dz = localDirectionToWorld(self.vehicle.rootNode, 0, 0, 1)
     self.movementDirection = math.atan2(dx, dz)
 
-    -- Position hotspot behind the tool from the start
+    -- Position hotspot behind the tool from the start (assume moving initially)
     local behindAngle = self.movementDirection + math.pi
-    self.worldX = vehicleX + math.sin(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldX = vehicleX + math.sin(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_MOVING
     self.worldY = vehicleY
-    self.worldZ = vehicleZ + math.cos(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldZ = vehicleZ + math.cos(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_MOVING
+    self.lastX = vehicleX
+    self.lastZ = vehicleZ
+    self.isMoving = true
     self.isActive = true
     self.lastUpdateTime = g_time
     self.birdsSpawned = false
@@ -131,6 +174,32 @@ function ToolBirdHotspotDirect:deactivate()
 end
 
 ---
+-- Start the despawn timer (called when tool stops working)
+---
+function ToolBirdHotspotDirect:startDespawnTimer()
+    if not self.despawnTimerActive then
+        self.despawnTimer = ToolBirdHotspotDirect.DESPAWN_DELAY
+        self.despawnTimerActive = true
+    end
+end
+
+---
+-- Cancel the despawn timer (called when tool starts working again)
+---
+function ToolBirdHotspotDirect:cancelDespawnTimer()
+    self.despawnTimer = 0
+    self.despawnTimerActive = false
+    
+    -- Also stop any ongoing gradual despawn process
+    if self.isDespawning then
+        self.isDespawning = false
+        self.numBirdsDespawned = 0
+        -- Birds that haven't been marked for despawn yet will continue normal feeding
+        -- Birds already marked for despawn (in despawningBirds array) will continue flying away
+    end
+end
+
+---
 -- Update hotspot position to follow the tool
 -- @param dt: Delta time in milliseconds
 ---
@@ -150,16 +219,36 @@ function ToolBirdHotspotDirect:update(dt)
         end
     end
 
+    -- Handle despawn timer countdown (runs via BirdManager even when vehicle is inactive)
+    if self.despawnTimerActive and self.despawnTimer > 0 then
+        self.despawnTimer = self.despawnTimer - dt
+
+        if self.despawnTimer <= 0 then
+            -- Timer expired - start cleanup
+            self.despawnTimerActive = false
+            self:cleanup()
+        end
+    end
+
+    -- Gradually despawn birds over time (one every SPAWN_INTERVAL)
+    -- This must run even when inactive, so it's before the early return
+    if self.isDespawning and #self.spawnedBirds > 0 then
+        if g_time - self.lastDespawnTime >= ToolBirdHotspotDirect.SPAWN_INTERVAL then
+            self:despawnOneBird()
+            self.lastDespawnTime = g_time
+        end
+    end
+
     -- Auto-deactivate when no active birds and no despawning birds
-    if not self.isActive and #self.despawningBirds == 0 then
+    if not self.isActive and #self.despawningBirds == 0 and not self.isDespawning then
+        -- Unregister from BirdManager when fully inactive
+        if BirdManager and self.vehicle then
+            BirdManager:unregisterHotspot(self.vehicle)
+        end
         return -- Fully inactive, nothing to update
     end
 
-    if not self.isActive or not self.vehicle then
-        return -- Only update despawning birds above
-    end
-
-    -- Update each bird EVERY FRAME for smooth movement
+    -- Update each bird EVERY FRAME for smooth movement (even during despawn)
     -- The state machine within each bird handles all behavior
     for _, bird in ipairs(self.spawnedBirds) do
         if bird and bird.update then
@@ -167,24 +256,21 @@ function ToolBirdHotspotDirect:update(dt)
         end
     end
 
-    -- Gradually spawn birds over time (one every SPAWN_INTERVAL)
-    if not self.birdsSpawned and self.numBirdsSpawned < ToolBirdHotspotDirect.MAX_BIRDS then
+    -- Check if we have a valid vehicle before position updates
+    if not self.vehicle then
+        return
+    end
+
+    -- Gradually spawn birds over time (one every SPAWN_INTERVAL) - only when active
+    if self.isActive and not self.birdsSpawned and self.numBirdsSpawned < ToolBirdHotspotDirect.MAX_BIRDS then
         if g_time - self.lastSpawnTime >= ToolBirdHotspotDirect.SPAWN_INTERVAL then
             self:spawnOneBird()
             self.lastSpawnTime = g_time
         end
     end
     
-    -- Gradually despawn birds over time (one every SPAWN_INTERVAL)
-    if self.isDespawning and self.numBirdsDespawned < #self.spawnedBirds then
-        if g_time - self.lastDespawnTime >= ToolBirdHotspotDirect.SPAWN_INTERVAL then
-            self:despawnOneBird()
-            self.lastDespawnTime = g_time
-        end
-    end
-    
     -- Start looping sound 8 seconds after spawning begins
-    if not self.soundStarted and self.soundStartTime and (g_time - self.soundStartTime) >= 8000 then
+    if self.isActive and not self.soundStarted and self.soundStartTime and (g_time - self.soundStartTime) >= 8000 then
         self:startSound()
         self.soundStarted = true
     end
@@ -195,6 +281,7 @@ function ToolBirdHotspotDirect:update(dt)
     end
 
     -- Update hotspot position periodically (not every frame for performance)
+    -- Continue updating even during despawn so birds can still track it
     if g_time - self.lastUpdateTime < ToolBirdHotspotDirect.UPDATE_INTERVAL then
         return
     end
@@ -204,15 +291,30 @@ function ToolBirdHotspotDirect:update(dt)
     -- Get current tool position and direction
     local vehicleX, vehicleY, vehicleZ = getWorldTranslation(self.vehicle.rootNode)
 
+    -- Calculate speed based on position change
+    local deltaTime = (ToolBirdHotspotDirect.UPDATE_INTERVAL / 1000.0) -- Convert ms to seconds
+    local distanceMoved = math.sqrt((vehicleX - self.lastX)^2 + (vehicleZ - self.lastZ)^2)
+    local speed = distanceMoved / deltaTime
+    
+    -- Update movement state
+    self.isMoving = speed > ToolBirdHotspotDirect.MOVEMENT_THRESHOLD
+    
+    -- Store current position for next update
+    self.lastX = vehicleX
+    self.lastZ = vehicleZ
+
     -- Get the tool's current facing direction
     local dx, _, dz = localDirectionToWorld(self.vehicle.rootNode, 0, 0, 1)
     self.movementDirection = math.atan2(dx, dz)
 
+    -- Choose offset based on movement state
+    local offset = self.isMoving and ToolBirdHotspotDirect.HOTSPOT_OFFSET_MOVING or ToolBirdHotspotDirect.HOTSPOT_OFFSET_STOPPED
+    
     -- Position hotspot behind the tool in the worked area
     local behindAngle = self.movementDirection + math.pi -- Opposite direction
-    self.worldX = vehicleX + math.sin(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldX = vehicleX + math.sin(behindAngle) * offset
     self.worldY = vehicleY
-    self.worldZ = vehicleZ + math.cos(behindAngle) * ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND
+    self.worldZ = vehicleZ + math.cos(behindAngle) * offset
 end
 
 ---
@@ -281,9 +383,14 @@ end
 ---
 function ToolBirdHotspotDirect:cleanup()
     if #self.spawnedBirds == 0 then
-        -- No birds to despawn, fully deactivate
+        -- No birds to despawn, fully deactivate and unregister
         self.isActive = false
         self:stopSound()
+        
+        -- Unregister from BirdManager when fully inactive
+        if BirdManager and self.vehicle then
+            BirdManager:unregisterHotspot(self.vehicle)
+        end
         return
     end
     
@@ -298,21 +405,21 @@ function ToolBirdHotspotDirect:cleanup()
     -- Stop spawning new ones, but keep updating existing/despawning birds
     self.isActive = false
     
-    -- Stop sound
-    self:stopSound()
+    -- Note: Sound continues playing until last bird starts flying away
 end
 
 ---
 -- Despawn a single bird (called periodically to gradually despawn all birds)
 ---
 function ToolBirdHotspotDirect:despawnOneBird()
-    if self.numBirdsDespawned >= #self.spawnedBirds then
+    -- Check if we have any birds left to despawn
+    if #self.spawnedBirds == 0 then
         self.isDespawning = false
         return false
     end
     
-    local index = self.numBirdsDespawned + 1
-    local bird = self.spawnedBirds[index]
+    -- Always take the first bird from the array
+    local bird = self.spawnedBirds[1]
     
     if bird and bird.rootNode and entityExists(bird.rootNode) then
         -- Request bird to enter despawning state
@@ -325,14 +432,18 @@ function ToolBirdHotspotDirect:despawnOneBird()
         table.insert(self.despawningBirds, bird)
     end
     
+    -- Remove this bird from spawnedBirds immediately
+    table.remove(self.spawnedBirds, 1)
     self.numBirdsDespawned = self.numBirdsDespawned + 1
     
     -- Check if all birds have been marked for despawn
-    if self.numBirdsDespawned >= #self.spawnedBirds then
+    if #self.spawnedBirds == 0 then
         self.isDespawning = false
-        self.spawnedBirds = {}  -- Clear the list since all are now despawning
         self.birdsSpawned = false
         self.numBirdsSpawned = 0
+        
+        -- Stop sound now that last bird has started flying away
+        self:stopSound()
     end
     
     return true

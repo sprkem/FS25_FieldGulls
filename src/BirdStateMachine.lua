@@ -11,7 +11,7 @@ BirdStateMachine.STATE_SPAWNING = "spawning"             -- Bird is spawning and
 BirdStateMachine.STATE_APPROACHING_PLOW = "approaching"  -- Flying towards plow (initial approach)
 BirdStateMachine.STATE_FEEDING_GROUND = "feeding_ground" -- Picking ground target and flying to it
 BirdStateMachine.STATE_FEEDING_UP = "feeding_up"         -- Flying upward from ground
-BirdStateMachine.STATE_FEEDING_GLIDE = "feeding_glide"   -- Gliding at altitude before diving
+BirdStateMachine.STATE_FEEDING_SEARCH = "feeding_search" -- Flying horizontally to find new location
 BirdStateMachine.STATE_FEEDING_DOWN = "feeding_down"     -- Flying back down
 BirdStateMachine.STATE_DESPAWNING = "despawning"         -- Flying away on deactivation
 
@@ -35,7 +35,9 @@ function BirdStateMachine.new(bird)
         downwardTargetRadius = 5.0, -- Pick targets within 5m when going down
         minGroundHeight = 0.01,     -- Minimum height above ground
         maxGroundHeight = 0.02,     -- Maximum height above ground when feeding
-        glideTimeMs = 200,          -- How long to glide at altitude (milliseconds)
+        searchRotationTime = 150,   -- Time to rotate towards new direction (milliseconds)
+        searchHoverTimeMin = 200,   -- Minimum time to hover after rotation (milliseconds)
+        searchHoverTimeMax = 500,   -- Maximum time to hover after rotation (milliseconds)
     }
 
     -- Enter the initial state to trigger behavior
@@ -91,8 +93,8 @@ function BirdStateMachine:onStateEnter(state)
         self:enterFeedingGroundState()
     elseif state == BirdStateMachine.STATE_FEEDING_UP then
         self:enterFeedingUpState()
-    elseif state == BirdStateMachine.STATE_FEEDING_GLIDE then
-        self:enterFeedingGlideState()
+    elseif state == BirdStateMachine.STATE_FEEDING_SEARCH then
+        self:enterFeedingSearchState()
     elseif state == BirdStateMachine.STATE_FEEDING_DOWN then
         self:enterFeedingDownState()
     elseif state == BirdStateMachine.STATE_DESPAWNING then
@@ -113,8 +115,8 @@ function BirdStateMachine:update(dt)
         self:updateFeedingGroundState(dt)
     elseif self.currentState == BirdStateMachine.STATE_FEEDING_UP then
         self:updateFeedingUpState(dt)
-    elseif self.currentState == BirdStateMachine.STATE_FEEDING_GLIDE then
-        self:updateFeedingGlideState(dt)
+    elseif self.currentState == BirdStateMachine.STATE_FEEDING_SEARCH then
+        self:updateFeedingSearchState(dt)
     elseif self.currentState == BirdStateMachine.STATE_FEEDING_DOWN then
         self:updateFeedingDownState(dt)
     elseif self.currentState == BirdStateMachine.STATE_DESPAWNING then
@@ -193,14 +195,14 @@ function BirdStateMachine:enterFeedingGroundState()
     -- Capture landing yaw (horizontal facing direction) to preserve
     if self.bird.sceneNode then
         local p, y, r = getRotation(self.bird.sceneNode)
-        self.stateData.landingYaw = y  -- Store the yaw we want to keep
+        self.stateData.landingYaw = y -- Store the yaw we want to keep
     end
 
     -- Set landing/eating animation when reaching ground
     if self.bird.setAnimationByName then
         self.bird:setAnimationByName(SimpleBirdDirect.ANIM_IDLE_EAT)
     end
-    
+
     -- Force bird flat on ground (pitch=0, roll=0) with preserved yaw for eating
     if self.bird.sceneNode and self.stateData.landingYaw then
         setRotation(self.bird.sceneNode, 0, self.stateData.landingYaw, 0)
@@ -220,9 +222,9 @@ function BirdStateMachine:updateFeedingGroundState(dt)
     end
 
     local timeOnGround = g_time - self.stateData.groundStartTime
-    
+
     -- Get idle time from bird attributes (loaded from XML)
-    local minTime = (self.bird.attributes.groundIdleTimeMin or 0.5) * 1000  -- Convert seconds to milliseconds
+    local minTime = (self.bird.attributes.groundIdleTimeMin or 0.5) * 1000 -- Convert seconds to milliseconds
     local maxTime = (self.bird.attributes.groundIdleTimeMax or 2.0) * 1000
     local requiredGroundTime = minTime + math.random() * (maxTime - minTime)
 
@@ -245,8 +247,8 @@ function BirdStateMachine:enterFeedingUpState()
 
     -- Fly up in a curved arc (with significant horizontal drift for natural curved flight)
     local upHeight = self.feedingConfig.upwardHeight + math.random() * 5.0 -- 10-15m
-    local driftX = (math.random() - 0.5) * 16.0                             -- Up to 8m drift in X
-    local driftZ = (math.random() - 0.5) * 16.0                             -- Up to 8m drift in Z
+    local driftX = (math.random() - 0.5) * 16.0                            -- Up to 8m drift in X
+    local driftZ = (math.random() - 0.5) * 16.0                            -- Up to 8m drift in Z
 
     local targetX = currentX + driftX
     local targetY = currentY + upHeight
@@ -267,36 +269,91 @@ end
 function BirdStateMachine:updateFeedingUpState(dt)
     -- Check if bird reached up target
     if not self.bird:getIsMoving() then
-        -- Transition to gliding state
-        self:setState(BirdStateMachine.STATE_FEEDING_GLIDE)
+        -- Transition directly to search state (skip glide for smoother horizontal transition)
+        self:setState(BirdStateMachine.STATE_FEEDING_SEARCH)
     end
 end
 
 ---
--- FEEDING GLIDE STATE: Glide at altitude for 1 second before diving
+-- FEEDING SEARCH STATE: Rotate and hover in place before diving
 ---
-function BirdStateMachine:enterFeedingGlideState()
-    -- Switch to glide animation (smooth gliding while looking down)
+function BirdStateMachine:enterFeedingSearchState()
+    -- Set active flying animation
     if self.bird.setAnimationByName then
-        self.bird:setAnimationByName(SimpleBirdDirect.ANIM_GLIDE)
+        self.bird:setAnimationByName(SimpleBirdDirect.ANIM_FLY)
     end
 
-    -- Point bird downward as if looking at the ground (30-45 degrees down)
-    local lookDownAngle = -30 - math.random() * 15 -- -30 to -45 degrees
-    if self.bird.setPitchAngle then
-        self.bird:setPitchAngle(lookDownAngle)
-    end
+    -- Pick a random horizontal direction for rotation
+    local randomAngle = math.random() * math.pi * 2
 
-    -- Record when gliding started
-    self.stateData.glideStartTime = g_time
+    self.stateData.rotating = true
+    self.stateData.rotationStartTime = g_time
+    self.stateData.targetYaw = randomAngle
+
+    -- Calculate hover duration
+    self.stateData.hoverDuration = self.feedingConfig.searchHoverTimeMin +
+        math.random() * (self.feedingConfig.searchHoverTimeMax - self.feedingConfig.searchHoverTimeMin)
+
+    -- Store starting rotation (including pitch) for smooth interpolation
+    if self.bird.sceneNode then
+        local pitch, yaw, roll = getRotation(self.bird.sceneNode)
+        self.stateData.startYaw = yaw
+        self.stateData.startPitch = pitch
+    end
 end
 
-function BirdStateMachine:updateFeedingGlideState(dt)
-    -- Wait for configured glide time
-    local glideTime = g_time - self.stateData.glideStartTime
-    if glideTime >= self.feedingConfig.glideTimeMs then
-        -- Glide complete, now dive back down
-        self:setState(BirdStateMachine.STATE_FEEDING_DOWN)
+function BirdStateMachine:updateFeedingSearchState(dt)
+    -- First phase: Rotate towards new direction and level out pitch
+    if self.stateData.rotating then
+        local rotationElapsed = g_time - self.stateData.rotationStartTime
+
+        if rotationElapsed >= self.feedingConfig.searchRotationTime then
+            -- Rotation complete, start hovering
+            self.stateData.rotating = false
+            self.stateData.hoverStartTime = g_time
+
+            -- Set final rotation: level pitch, target yaw
+            if self.bird.sceneNode and self.stateData.targetYaw then
+                setRotation(self.bird.sceneNode, 0, self.stateData.targetYaw, 0)
+            end
+        else
+            -- Interpolate both yaw and pitch
+            if self.bird.sceneNode and self.stateData.startYaw and self.stateData.targetYaw and self.stateData.startPitch then
+                local t = rotationElapsed / self.feedingConfig.searchRotationTime
+
+                -- Interpolate yaw (calculate shortest rotation path)
+                local startYaw = self.stateData.startYaw
+                local targetYaw = self.stateData.targetYaw
+                local yawDiff = targetYaw - startYaw
+
+                -- Normalize to [-pi, pi]
+                while yawDiff > math.pi do yawDiff = yawDiff - 2 * math.pi end
+                while yawDiff < -math.pi do yawDiff = yawDiff + 2 * math.pi end
+
+                local currentYaw = startYaw + yawDiff * t
+
+                -- Interpolate pitch from startPitch to 0 (level flight)
+                local currentPitch = self.stateData.startPitch * (1 - t)
+
+                setRotation(self.bird.sceneNode, currentPitch, currentYaw, 0)
+            end
+        end
+        return
+    end
+
+    -- Second phase: Hover in place (keep rotation locked level)
+    if self.stateData.hoverStartTime then
+        -- Lock rotation at target yaw with level pitch during hover
+        if self.bird.sceneNode and self.stateData.targetYaw then
+            setRotation(self.bird.sceneNode, 0, self.stateData.targetYaw, 0)
+        end
+
+        local hoverElapsed = g_time - self.stateData.hoverStartTime
+
+        if hoverElapsed >= self.stateData.hoverDuration then
+            -- Hover complete, now dive back down
+            self:setState(BirdStateMachine.STATE_FEEDING_DOWN)
+        end
     end
 end
 
@@ -333,9 +390,9 @@ function BirdStateMachine:enterFeedingDownState()
 
     -- Set bird target with curved path for natural diving
     if self.bird.moveToCurved then
-        self.bird:moveToCurved(targetX, targetY, targetZ, 12.0) -- Medium-fast dive with curve
+        self.bird:moveToCurved(targetX, targetY, targetZ, 10.0)
     else
-        self.bird:moveToTarget(targetX, targetY, targetZ, 15.0) -- Fallback to straight line
+        self.bird:moveToTarget(targetX, targetY, targetZ, 10.0)
     end
 end
 
@@ -417,8 +474,8 @@ function BirdStateMachine:getCurrentStateAnimation()
         return SimpleBirdDirect.ANIM_IDLE_EAT
     elseif self.currentState == BirdStateMachine.STATE_FEEDING_UP then
         return SimpleBirdDirect.ANIM_FLY_UP
-    elseif self.currentState == BirdStateMachine.STATE_FEEDING_GLIDE then
-        return SimpleBirdDirect.ANIM_GLIDE
+    elseif self.currentState == BirdStateMachine.STATE_FEEDING_SEARCH then
+        return SimpleBirdDirect.ANIM_FLY
     elseif self.currentState == BirdStateMachine.STATE_FEEDING_DOWN then
         return SimpleBirdDirect.ANIM_FLY_DOWN_FLAP
     elseif self.currentState == BirdStateMachine.STATE_DESPAWNING then
