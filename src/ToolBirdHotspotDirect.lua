@@ -9,8 +9,9 @@ local ToolBirdHotspotDirect_mt = Class(ToolBirdHotspotDirect)
 -- Configuration
 ToolBirdHotspotDirect.HOTSPOT_RADIUS = 5              -- Radius around the tool where birds gather (meters)
 ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 2       -- How far behind the tool to position the hotspot (meters)
-ToolBirdHotspotDirect.MAX_BIRDS = 20                  -- Maximum number of birds around the tool
+ToolBirdHotspotDirect.MAX_BIRDS = 60                  -- Maximum number of birds around the tool
 ToolBirdHotspotDirect.UPDATE_INTERVAL = 50            -- Update hotspot position every 50ms (20 times per second)
+ToolBirdHotspotDirect.SPAWN_INTERVAL = 500            -- Spawn one bird every 500ms (instead of all at once)
 ToolBirdHotspotDirect.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
 ToolBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN = 40 -- Birds spawn 40m above terrain
 
@@ -65,6 +66,8 @@ function ToolBirdHotspotDirect.new(vehicle, workAreaType)
     self.lastBirdUpdateTime = 0                                           -- For updating bird movement targets
     self.movementDirection = 0                                            -- Direction the tool is moving
     self.birdsSpawned = false                                             -- Track if initial birds have been spawned
+    self.numBirdsSpawned = 0                                              -- Track how many birds spawned so far
+    self.lastSpawnTime = 0                                                -- Track when last bird was spawned
     self.workingWidth = ToolBirdHotspotDirect.getToolWorkingWidth(vehicle, workAreaType) -- Cache the working width
 
     return self
@@ -94,6 +97,8 @@ function ToolBirdHotspotDirect:activate()
     self.isActive = true
     self.lastUpdateTime = g_time
     self.birdsSpawned = false
+    self.numBirdsSpawned = 0
+    self.lastSpawnTime = g_time
 
     return true
 end
@@ -143,6 +148,14 @@ function ToolBirdHotspotDirect:update(dt)
         end
     end
 
+    -- Gradually spawn birds over time (one every SPAWN_INTERVAL)
+    if not self.birdsSpawned and self.numBirdsSpawned < ToolBirdHotspotDirect.MAX_BIRDS then
+        if g_time - self.lastSpawnTime >= ToolBirdHotspotDirect.SPAWN_INTERVAL then
+            self:spawnOneBird()
+            self.lastSpawnTime = g_time
+        end
+    end
+
     -- Update hotspot position periodically (not every frame for performance)
     if g_time - self.lastUpdateTime < ToolBirdHotspotDirect.UPDATE_INTERVAL then
         return
@@ -165,48 +178,64 @@ function ToolBirdHotspotDirect:update(dt)
 end
 
 ---
--- Spawn initial set of birds at this hotspot
+-- Spawn initial set of birds at this hotspot (called from extension to start spawning)
 ---
 function ToolBirdHotspotDirect:spawnInitialBirds()
+    -- This now just marks that we should start spawning
+    -- Actual spawning happens gradually in update()
     if self.birdsSpawned or not self.isActive then
         return false
     end
 
-    -- Spawn birds spread perpendicular to movement direction, 50m behind, 40m up
-    local totalSpawned = 0
-    for i = 1, ToolBirdHotspotDirect.MAX_BIRDS do
-        -- Calculate perpendicular angle (90 degrees to movement direction)
-        local perpAngle = self.movementDirection + math.pi / 2
+    -- Spawn the first bird immediately
+    self:spawnOneBird()
+    self.lastBirdUpdateTime = g_time
+    return true
+end
 
-        -- Spread birds in a wide 35m radius for initial spawn
-        local lateralOffset = (i / ToolBirdHotspotDirect.MAX_BIRDS - 0.5) * 35.0
-
-        -- Calculate spawn position: hotspot + lateral offset perpendicular + 50m backward
-        local longitudinalOffset = ToolBirdHotspotDirect.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
-
-        local spawnX = self.worldX + math.sin(perpAngle) * lateralOffset -
-            math.sin(self.movementDirection) * longitudinalOffset
-        local spawnZ = self.worldZ + math.cos(perpAngle) * lateralOffset -
-            math.cos(self.movementDirection) * longitudinalOffset
-
-        -- Spawn at terrain height + 40m
-        local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, spawnX, 0, spawnZ)
-        local spawnY = terrainY + ToolBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN +
-            (math.random() - 0.5) * 5 -- ±2.5m variation
-
-        -- Create a SimpleBirdDirect (has built-in state machine)
-        local bird = SimpleBirdDirect.new(spawnX, spawnY, spawnZ, self)
-
-        if bird then
-            -- Track it
-            table.insert(self.spawnedBirds, bird)
-            totalSpawned = totalSpawned + 1
+---
+-- Spawn a single bird (called periodically to gradually spawn all birds)
+---
+function ToolBirdHotspotDirect:spawnOneBird()
+    if not self.isActive or self.numBirdsSpawned >= ToolBirdHotspotDirect.MAX_BIRDS then
+        if self.numBirdsSpawned >= ToolBirdHotspotDirect.MAX_BIRDS then
+            self.birdsSpawned = true -- Mark spawning complete
         end
+        return false
     end
 
-    self.birdsSpawned = true
-    self.lastBirdUpdateTime = g_time
-    return totalSpawned > 0
+    local i = self.numBirdsSpawned + 1
+
+    -- Calculate perpendicular angle (90 degrees to movement direction)
+    local perpAngle = self.movementDirection + math.pi / 2
+
+    -- Spread birds in a wide radius for initial spawn
+    local lateralOffset = (i / ToolBirdHotspotDirect.MAX_BIRDS - 0.5) * 65.0
+
+    -- Calculate spawn position: hotspot + lateral offset perpendicular + 50m backward
+    local longitudinalOffset = ToolBirdHotspotDirect.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
+
+    local spawnX = self.worldX + math.sin(perpAngle) * lateralOffset -
+        math.sin(self.movementDirection) * longitudinalOffset
+    local spawnZ = self.worldZ + math.cos(perpAngle) * lateralOffset -
+        math.cos(self.movementDirection) * longitudinalOffset
+
+    -- Spawn at terrain height + 40m
+    local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, spawnX, 0, spawnZ)
+    local spawnY = terrainY + ToolBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN +
+        (math.random() - 0.5) * 5 -- ±2.5m variation
+
+    -- Create a SimpleBirdDirect (has built-in state machine)
+    local bird = SimpleBirdDirect.new(spawnX, spawnY, spawnZ, self)
+
+    if bird then
+        -- Track it
+        table.insert(self.spawnedBirds, bird)
+        self.numBirdsSpawned = self.numBirdsSpawned + 1
+        return true
+    end
+
+    return false
 end
 
 ---
@@ -231,6 +260,7 @@ function ToolBirdHotspotDirect:cleanup()
 
     self.spawnedBirds = {}
     self.birdsSpawned = false
+    self.numBirdsSpawned = 0
 
     -- Stop spawning new ones, but keep updating despawning birds
     self.isActive = false

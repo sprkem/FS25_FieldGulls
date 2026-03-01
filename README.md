@@ -23,25 +23,8 @@ This mod adds immersive wildlife behavior by spawning birds that follow plows wh
 
 ## Configuration
 
-You can easily adjust the behavior by editing `src/PlowBirdHotspot.lua`:
+You can easily adjust the behavior by editing `src/PlowBirdHotspot.lua` and `src/PlowBirdsExtension.lua`:
 
-```lua
-PlowBirdHotspot.HOTSPOT_RADIUS = 3                 -- Area where birds move around (meters)
-PlowBirdHotspot.HOTSPOT_OFFSET_BEHIND = 10         -- Distance behind plow for hotspot
-PlowBirdHotspot.MAX_BIRDS = 10                     -- Maximum number of birds
-PlowBirdHotspot.BIRDS_PER_SPAWN = 3                -- Birds spawned per group
-PlowBirdHotspot.SPAWN_DISTANCE_FROM_HOTSPOT = 20   -- How far away birds initially spawn
-PlowBirdHotspot.SPAWN_HEIGHT = 5                   -- Spawn height above ground (meters)
-PlowBirdHotspot.UPDATE_INTERVAL = 200              -- How often hotspot updates position (ms)
-PlowBirdHotspot.BIRD_TARGET_UPDATE_INTERVAL = 1000 -- How often birds get new targets (ms)
-```
-
-And `src/PlowBirdsExtension.lua`:
-
-```lua
-PlowBirdsExtension.DESPAWN_DELAY = 10000           -- Despawn delay in milliseconds
-PlowBirdsExtension.MIN_WORKING_SPEED = 0.5         -- Minimum speed to trigger birds
-```
 
 ## Requirements
 
