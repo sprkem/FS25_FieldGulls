@@ -30,4 +30,11 @@
     
     <!-- Behavior configuration -->
     <behavior groundIdleTimeMin="4.0" groundIdleTimeMax="6.0" />
+    
+    <!-- Sound configuration - single looping ambient sound -->
+    <sounds>
+        <sound name="ambient" volume="1.5">
+            <sample filename="seagull/sounds/1.ogg" />
+        </sound>
+    </sounds>
 </species>

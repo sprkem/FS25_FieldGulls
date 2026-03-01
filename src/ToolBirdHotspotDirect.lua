@@ -8,12 +8,14 @@ local ToolBirdHotspotDirect_mt = Class(ToolBirdHotspotDirect)
 
 -- Configuration
 ToolBirdHotspotDirect.HOTSPOT_RADIUS = 5              -- Radius around the tool where birds gather (meters)
-ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 2       -- How far behind the tool to position the hotspot (meters)
+ToolBirdHotspotDirect.HOTSPOT_OFFSET_BEHIND = 1       -- How far behind the tool to position the hotspot (meters)
 ToolBirdHotspotDirect.MAX_BIRDS = 60                  -- Maximum number of birds around the tool
 ToolBirdHotspotDirect.UPDATE_INTERVAL = 50            -- Update hotspot position every 50ms (20 times per second)
 ToolBirdHotspotDirect.SPAWN_INTERVAL = 500            -- Spawn one bird every 500ms (instead of all at once)
 ToolBirdHotspotDirect.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
 ToolBirdHotspotDirect.SPAWN_HEIGHT_ABOVE_TERRAIN = 40 -- Birds spawn 40m above terrain
+ToolBirdHotspotDirect.DESPAWN_DELAY = 15000           -- Wait time before birds start flying away (milliseconds)
+ToolBirdHotspotDirect.DESPAWN_DURATION = 10000        -- How long birds fly away before being deleted (milliseconds)
 
 ---
 -- Get the working width of the tool from its work areas
@@ -68,7 +70,18 @@ function ToolBirdHotspotDirect.new(vehicle, workAreaType)
     self.birdsSpawned = false                                             -- Track if initial birds have been spawned
     self.numBirdsSpawned = 0                                              -- Track how many birds spawned so far
     self.lastSpawnTime = 0                                                -- Track when last bird was spawned
+    self.isDespawning = false                                             -- Track if gradual despawn is in progress
+    self.numBirdsDespawned = 0                                            -- Track how many birds marked for despawn
+    self.lastDespawnTime = 0                                              -- Track when last bird was despawned
     self.workingWidth = ToolBirdHotspotDirect.getToolWorkingWidth(vehicle, workAreaType) -- Cache the working width
+    
+    -- Sound management (3D positional audio)
+    self.soundNode = nil                                                  -- The audio source node (3D sound)
+    self.soundSample = nil                                                -- The sample ID from the audio source
+    self.soundTransform = nil                                             -- Transform node to position the sound
+    self.soundVolume = 1.0                                                -- Volume level (loaded from XML)
+    self.soundStartTime = nil                                             -- When spawning started (for 8s delay)
+    self.soundStarted = false                                             -- Track if sound has started
 
     return self
 end
@@ -99,6 +112,11 @@ function ToolBirdHotspotDirect:activate()
     self.birdsSpawned = false
     self.numBirdsSpawned = 0
     self.lastSpawnTime = g_time
+    
+    -- Initialize sound
+    self.soundStartTime = g_time
+    self.soundStarted = false
+    self:initializeSound()
 
     return true
 end
@@ -109,6 +127,7 @@ end
 function ToolBirdHotspotDirect:deactivate()
     self.isActive = false
     self.worldY = -200 -- Move below ground
+    self:stopSound()
 end
 
 ---
@@ -122,7 +141,7 @@ function ToolBirdHotspotDirect:update(dt)
         if bird then
             bird:update(dt) -- Keep updating the bird's movement
             local elapsed = g_time - bird.despawnStartTime
-            if elapsed > 5000 then
+            if elapsed > ToolBirdHotspotDirect.DESPAWN_DURATION then
                 if bird.delete then
                     bird:delete()
                 end
@@ -154,6 +173,25 @@ function ToolBirdHotspotDirect:update(dt)
             self:spawnOneBird()
             self.lastSpawnTime = g_time
         end
+    end
+    
+    -- Gradually despawn birds over time (one every SPAWN_INTERVAL)
+    if self.isDespawning and self.numBirdsDespawned < #self.spawnedBirds then
+        if g_time - self.lastDespawnTime >= ToolBirdHotspotDirect.SPAWN_INTERVAL then
+            self:despawnOneBird()
+            self.lastDespawnTime = g_time
+        end
+    end
+    
+    -- Start looping sound 8 seconds after spawning begins
+    if not self.soundStarted and self.soundStartTime and (g_time - self.soundStartTime) >= 8000 then
+        self:startSound()
+        self.soundStarted = true
+    end
+    
+    -- Update sound position to follow hotspot
+    if self.soundStarted and self.soundTransform then
+        setTranslation(self.soundTransform, self.worldX, self.worldY, self.worldZ)
     end
 
     -- Update hotspot position periodically (not every frame for performance)
@@ -239,31 +277,168 @@ function ToolBirdHotspotDirect:spawnOneBird()
 end
 
 ---
--- Clean up all birds spawned by this hotspot
+-- Start gradual despawn of birds (called when tool stops working)
 ---
 function ToolBirdHotspotDirect:cleanup()
-    -- Request each bird to enter despawn state via state machine
-    local despawnCount = 0
-    for i, bird in ipairs(self.spawnedBirds) do
-        if bird and bird.rootNode and entityExists(bird.rootNode) then
-            -- Request bird to enter despawning state
-            -- State machine will handle flying away automatically
-            if bird.requestDespawn then
-                bird:requestDespawn()
-            end
+    if #self.spawnedBirds == 0 then
+        -- No birds to despawn, fully deactivate
+        self.isActive = false
+        self:stopSound()
+        return
+    end
+    
+    -- Start the gradual despawn process
+    self.isDespawning = true
+    self.numBirdsDespawned = 0
+    self.lastDespawnTime = g_time
+    
+    -- Despawn the first bird immediately
+    self:despawnOneBird()
+    
+    -- Stop spawning new ones, but keep updating existing/despawning birds
+    self.isActive = false
+    
+    -- Stop sound
+    self:stopSound()
+end
 
-            -- Move to despawning list
-            table.insert(self.despawningBirds, bird)
-            despawnCount = despawnCount + 1
+---
+-- Despawn a single bird (called periodically to gradually despawn all birds)
+---
+function ToolBirdHotspotDirect:despawnOneBird()
+    if self.numBirdsDespawned >= #self.spawnedBirds then
+        self.isDespawning = false
+        return false
+    end
+    
+    local index = self.numBirdsDespawned + 1
+    local bird = self.spawnedBirds[index]
+    
+    if bird and bird.rootNode and entityExists(bird.rootNode) then
+        -- Request bird to enter despawning state
+        -- State machine will handle flying away automatically
+        if bird.requestDespawn then
+            bird:requestDespawn()
+        end
+        
+        -- Move to despawning list for tracking
+        table.insert(self.despawningBirds, bird)
+    end
+    
+    self.numBirdsDespawned = self.numBirdsDespawned + 1
+    
+    -- Check if all birds have been marked for despawn
+    if self.numBirdsDespawned >= #self.spawnedBirds then
+        self.isDespawning = false
+        self.spawnedBirds = {}  -- Clear the list since all are now despawning
+        self.birdsSpawned = false
+        self.numBirdsSpawned = 0
+    end
+    
+    return true
+end
+
+---
+-- Initialize the shared looping sound sample (3D positional audio)
+---
+function ToolBirdHotspotDirect:initializeSound()
+    -- Load bird config to get sound file path
+    local config = BirdConfig.getConfig()
+    if not config or not config.soundGroups then
+        return
+    end
+    
+    -- Get the first sound group (should only be one now)
+    local soundFilePath = nil
+    local soundVolume = 1.0  -- Default volume
+    for groupName, soundGroup in pairs(config.soundGroups) do
+        if soundGroup.fileNames and #soundGroup.fileNames > 0 then
+            soundFilePath = soundGroup.fileNames[1]
+            soundVolume = soundGroup.volume or 1.0
+            break
         end
     end
+    
+    if not soundFilePath then
+        return
+    end
+    
+    -- Store volume for later use
+    self.soundVolume = soundVolume
+    
+    -- Create a transform node to position the sound in the world
+    self.soundTransform = createTransformGroup("birdFlockSoundEmitter")
+    setTranslation(self.soundTransform, self.worldX, self.worldY, self.worldZ)
+    link(getRootNode(), self.soundTransform)
+    
+    -- Create 3D audio source with spatial audio properties
+    local sampleName = "birdFlock_" .. tostring(self):gsub("table: ", "")
+    local outerRadius = 80.0  -- Sound audible up to 80m away
+    local innerRadius = 20.0  -- Full volume within 20m
+    local loops = 0  -- 0 = infinite loop
+    
+    self.soundNode = createAudioSource(sampleName, soundFilePath, outerRadius, innerRadius, soundVolume, loops)
+    
+    if self.soundNode and self.soundNode ~= 0 then
+        -- Get the sample from the audio source
+        self.soundSample = getAudioSourceSample(self.soundNode)
+        
+        if self.soundSample and self.soundSample ~= 0 then
+            setSampleGroup(self.soundSample, AudioGroup.ENVIRONMENT)
+            setAudioSourceAutoPlay(self.soundNode, false)
+            
+            -- Link audio source to our transform node so it moves with the hotspot
+            link(self.soundTransform, self.soundNode)
+        else
+            -- Failed to get sample - cleanup
+            delete(self.soundNode)
+            delete(self.soundTransform)
+            self.soundNode = nil
+            self.soundTransform = nil
+            self.soundSample = nil
+        end
+    else
+        -- Failed to create audio source - cleanup
+        delete(self.soundTransform)
+        self.soundTransform = nil
+    end
+end
 
-    self.spawnedBirds = {}
-    self.birdsSpawned = false
-    self.numBirdsSpawned = 0
+---
+-- Start playing the looping sound (3D positional)
+---
+function ToolBirdHotspotDirect:startSound()
+    if self.soundNode and self.soundNode ~= 0 then
+        -- Play the audio source (volume is set via createAudioSource, this just triggers playback)
+        -- Note: For 3D audio sources, the volume parameter here is ignored in favor of the AudioSource's volume
+        playSample(self.soundSample, 0, self.soundVolume, 0, 0, 0)
+    end
+end
 
-    -- Stop spawning new ones, but keep updating despawning birds
-    self.isActive = false
+---
+-- Stop the looping sound and cleanup
+---
+function ToolBirdHotspotDirect:stopSound()
+    if self.soundSample and self.soundSample ~= 0 then
+        if isSamplePlaying(self.soundSample) then
+            stopSample(self.soundSample, 0, 0)
+        end
+    end
+    
+    -- Delete audio source node
+    if self.soundNode and self.soundNode ~= 0 then
+        delete(self.soundNode)
+        self.soundNode = nil
+    end
+    
+    -- Delete transform node
+    if self.soundTransform and self.soundTransform ~= 0 then
+        delete(self.soundTransform)
+        self.soundTransform = nil
+    end
+    
+    self.soundSample = nil
+    self.soundStarted = false
 end
 
 ---

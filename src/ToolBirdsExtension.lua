@@ -5,9 +5,6 @@
 
 ToolBirdsExtension = {}
 
--- Configuration
-ToolBirdsExtension.DESPAWN_DELAY = 10000 -- 10 seconds in milliseconds
-
 ---
 -- Initialize bird data on a vehicle
 -- @param vehicle: The vehicle to extend
@@ -50,7 +47,7 @@ function ToolBirdsExtension:onUpdate(vehicle, dt, isCurrentlyWorking)
     elseif not isCurrentlyWorking and data.isWorking then
         -- Just stopped working - start despawn timer
         data.isWorking = false
-        data.despawnTimer = ToolBirdsExtension.DESPAWN_DELAY
+        data.despawnTimer = ToolBirdHotspotDirect.DESPAWN_DELAY
     end
 
     -- Update hotspot position even when inactive (for despawning birds)
