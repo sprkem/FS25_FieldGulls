@@ -1,3 +1,6 @@
 refs/*
 log.txt
 .vscode
+moveZip.bat
+moveDebug.bat
+package.bat
