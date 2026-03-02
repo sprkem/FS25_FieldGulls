@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<l10n>
+	<translationContributors/>
+	<texts>
+		<!-- Settings Section -->
+		<text name="setting_birds_section" text="Feldmöwen"/>
+		
+		<!-- Settings -->
+		<text name="setting_birds_birdSoundVolume" text="Vogellautstärke"/>
+		<text name="setting_birds_birdSoundVolume_tooltip" text="Passen Sie die Lautstärke der Vogelgeräusche an. Auf 0% setzen, um Geräusche zu deaktivieren."/>
+	</texts>
+</l10n>

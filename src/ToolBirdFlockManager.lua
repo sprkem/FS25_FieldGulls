@@ -365,11 +365,11 @@ function ToolBirdFlockManager:initializeSound()
 
     -- Get the first sound group (should only be one now)
     local soundFilePath = nil
-    local soundVolume = 1.0 -- Default volume
+    local baseVolume = 1.0 -- Default volume from config
     for groupName, soundGroup in pairs(config.soundGroups) do
         if soundGroup.fileNames and #soundGroup.fileNames > 0 then
             soundFilePath = soundGroup.fileNames[1]
-            soundVolume = soundGroup.volume or 1.0
+            baseVolume = soundGroup.volume or 1.0
             break
         end
     end
@@ -378,8 +378,21 @@ function ToolBirdFlockManager:initializeSound()
         return
     end
 
-    -- Store volume for later use
-    self.soundVolume = soundVolume
+    -- Get user's volume preference from settings
+    local userVolume = 1.0
+    if BirdSettings and BirdSettings.settings then
+        userVolume = BirdSettings.settings.birdSoundVolume or 1.0
+    end
+
+    -- Store both volumes for later use
+    self.baseVolume = baseVolume
+    self.userVolume = userVolume
+    self.soundVolume = baseVolume * userVolume
+
+    -- Don't create sound if user has it disabled (volume = 0)
+    if self.soundVolume == 0 then
+        return
+    end
 
     -- Get initial vehicle position for sound
     local vehicleX, vehicleY, vehicleZ = 0, 0, 0
@@ -398,7 +411,7 @@ function ToolBirdFlockManager:initializeSound()
     local innerRadius = 20.0 -- Full volume within 20m
     local loops = 0          -- 0 = infinite loop
 
-    self.soundNode = createAudioSource(sampleName, soundFilePath, outerRadius, innerRadius, soundVolume, loops)
+    self.soundNode = createAudioSource(sampleName, soundFilePath, outerRadius, innerRadius, self.soundVolume, loops)
 
     if self.soundNode and self.soundNode ~= 0 then
         self.soundSample = getAudioSourceSample(self.soundNode)
@@ -435,6 +448,46 @@ function ToolBirdFlockManager:updateSoundPosition()
 
     local vehicleX, vehicleY, vehicleZ = getWorldTranslation(self.vehicle.rootNode)
     setTranslation(self.soundTransform, vehicleX, vehicleY, vehicleZ)
+end
+
+---
+-- Update the sound volume (called when user changes setting)
+-- @param newUserVolume: New user volume setting (0.0 to 2.0)
+---
+function ToolBirdFlockManager:updateSoundVolume(newUserVolume)
+    self.userVolume = newUserVolume
+    self.soundVolume = (self.baseVolume or 1.0) * newUserVolume
+    
+    -- If sound is disabled (volume = 0), stop it
+    if self.soundVolume == 0 then
+        if self.soundSample and self.soundSample ~= 0 and isSamplePlaying(self.soundSample) then
+            stopSample(self.soundSample, 0, 0)
+        end
+        return
+    end
+    
+    -- If sound was never initialized (because volume was 0), initialize it now
+    if not self.soundSample or self.soundSample == 0 then
+        if self.isActive then  -- Only initialize if flock is active
+            self:initializeSound()
+            -- If sound should be playing (8 seconds passed since spawn start), start it
+            if self.soundStartTime and (g_time - self.soundStartTime) >= 8000 then
+                self:startSound()
+                self.soundStarted = true
+            end
+        end
+        return
+    end
+    
+    -- Update volume if sound exists and is playing
+    if isSamplePlaying(self.soundSample) then
+        setSampleVolume(self.soundSample, self.soundVolume)
+    else
+        -- If sound should be playing but isn't (because it was disabled), restart it
+        if self.soundStarted and self.soundNode and self.soundNode ~= 0 then
+            playSample(self.soundSample, 0, self.soundVolume, 0, 0, 0)
+        end
+    end
 end
 
 ---

@@ -35,6 +35,7 @@ GitHub: https://github.com/sprkem/FS25_FollowingBirds
         </fr>
     </description>
     <extraSourceFiles>
+        <sourceFile filename="src/BirdSettings.lua"/>
         <sourceFile filename="src/BirdManager.lua"/>
         <sourceFile filename="src/GridFeedingZones.lua"/>
         <sourceFile filename="src/CurvedPathPlanner.lua"/>

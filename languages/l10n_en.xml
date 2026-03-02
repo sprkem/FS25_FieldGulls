@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<l10n>
+	<translationContributors/>
+	<texts>
+		<!-- Settings Section -->
+		<text name="setting_birds_section" text="Field Gulls"/>
+		
+		<!-- Settings -->
+		<text name="setting_birds_birdSoundVolume" text="Bird Sound Volume"/>
+		<text name="setting_birds_birdSoundVolume_tooltip" text="Adjust the volume of bird sounds. Set to 0% to disable sounds."/>
+	</texts>
+</l10n>

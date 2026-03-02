@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<l10n>
+	<translationContributors/>
+	<texts>
+		<!-- Settings Section -->
+		<text name="setting_birds_section" text="Mouettes de Champ"/>
+		
+		<!-- Settings -->
+		<text name="setting_birds_birdSoundVolume" text="Volume du Son des Oiseaux"/>
+		<text name="setting_birds_birdSoundVolume_tooltip" text="Ajustez le volume des sons d'oiseaux. Réglez sur 0% pour désactiver les sons."/>
+	</texts>
+</l10n>
