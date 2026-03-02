@@ -183,18 +183,15 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
     end
 
     local selectedCell = nil
-    local MIN_DISTANCE_FROM_TOOL = 2.0 -- Minimum 2 meters from tool
+    local MIN_DISTANCE_FROM_TOOL = 3.0
 
     -- 75% chance: Pick randomly from top 10 most recent cells
     -- 25% chance: Pick weighted by inverse distance
     if math.random() < 0.75 then
-        -- Build list of valid cells (excluding those within 2m of tool)
         local validCells = {}
         for i = 1, math.min(20, #self.cellsByTimestamp) do
             local cell = self.cellsByTimestamp[i]
-            local dx = cell.gridX - vehicleX
-            local dz = cell.gridZ - vehicleZ
-            local distFromTool = math.sqrt(dx * dx + dz * dz)
+            local distFromTool = MathUtil.vector2Length(cell.gridX - vehicleX, cell.gridZ - vehicleZ)
 
             if distFromTool >= MIN_DISTANCE_FROM_TOOL then
                 table.insert(validCells, cell)
@@ -222,16 +219,11 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
             local cell = self.cellsByTimestamp[i]
 
             -- Check distance from tool
-            local dxTool = cell.gridX - vehicleX
-            local dzTool = cell.gridZ - vehicleZ
-            local distFromTool = math.sqrt(dxTool * dxTool + dzTool * dzTool)
+            local distFromTool = MathUtil.vector2Length(cell.gridX - vehicleX, cell.gridZ - vehicleZ)
 
             if distFromTool >= MIN_DISTANCE_FROM_TOOL then
                 -- Calculate weight based on distance to bird
-                local dx = cell.gridX - birdX
-                local dz = cell.gridZ - birdZ
-                local distanceSq = dx * dx + dz * dz
-                local distance = math.sqrt(distanceSq)
+                local distance = MathUtil.vector2Length(cell.gridX - birdX, cell.gridZ - birdZ)
 
                 -- Inverse distance weight (closer to bird = higher weight)
                 local weight = 1.0 / (distance + 1.0)
