@@ -17,6 +17,8 @@ ToolBirdFlockManager.DESPAWN_DURATION = 10000        -- How long birds fly away 
 
 ---
 -- Get the working width of the tool from its work areas
+-- Calculates the total bounding box across ALL work areas of the specified type
+-- (Wide cultivators/plows have multiple work areas that need to be combined)
 -- @param vehicle: The vehicle with tool
 -- @param workAreaType: The work area type to search for
 -- @return width in meters, or 5.0 as default
@@ -31,17 +33,40 @@ function ToolBirdFlockManager.getToolWorkingWidth(vehicle, workAreaType)
         return 5.0
     end
 
-    -- Get the first work area of the specified type
+    -- Collect ALL work areas of the specified type
+    local minX, minZ = math.huge, math.huge
+    local maxX, maxZ = -math.huge, -math.huge
+    local foundAnyWorkArea = false
+
     for _, workArea in ipairs(workAreas) do
-        if workArea.type == workAreaType and workArea.start and workArea.width then
-            local x1, _, z1 = getWorldTranslation(workArea.start)
-            local x2, _, z2 = getWorldTranslation(workArea.width)
-            local width = math.sqrt((x2 - x1) ^ 2 + (z2 - z1) ^ 2)
-            return width
+        if workArea.type == workAreaType and workArea.start and workArea.width and workArea.height then
+            foundAnyWorkArea = true
+            
+            -- Get all three corner points of the work area
+            local sx, _, sz = getWorldTranslation(workArea.start)
+            local wx, _, wz = getWorldTranslation(workArea.width)
+            local hx, _, hz = getWorldTranslation(workArea.height)
+            
+            -- Update bounding box
+            minX = math.min(minX, sx, wx, hx)
+            maxX = math.max(maxX, sx, wx, hx)
+            minZ = math.min(minZ, sz, wz, hz)
+            maxZ = math.max(maxZ, sz, wz, hz)
         end
     end
 
-    return 5.0 -- Fallback if no work area found
+    if not foundAnyWorkArea then
+        return 5.0 -- Fallback if no work area found
+    end
+
+    -- Calculate total width from bounding box
+    local widthX = maxX - minX
+    local widthZ = maxZ - minZ
+    
+    -- Return the maximum dimension (typically the width perpendicular to movement)
+    local totalWidth = math.max(widthX, widthZ)
+    
+    return totalWidth
 end
 
 ---
@@ -273,8 +298,10 @@ function ToolBirdFlockManager:spawnOneBird()
     -- Calculate perpendicular angle (90 degrees to movement direction)
     local perpAngle = movementDirection + math.pi / 2
 
-    -- Spread birds in a wide radius for initial spawn
-    local lateralOffset = (i / ToolBirdFlockManager.MAX_BIRDS - 0.5) * 65.0
+    -- Spread birds based on actual working width (with 2.5x multiplier for natural spread)
+    -- This ensures birds spawn across the full working width, not just one work area
+    local spreadWidth = self.workingWidth * 2.5
+    local lateralOffset = (i / ToolBirdFlockManager.MAX_BIRDS - 0.5) * spreadWidth
     local longitudinalOffset = ToolBirdFlockManager.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
 
     local spawnX = vehicleX + math.sin(perpAngle) * lateralOffset -
