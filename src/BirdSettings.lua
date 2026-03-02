@@ -14,9 +14,9 @@ BirdSettings.menuItems = {
 BirdSettings.SETTINGS = {}
 
 BirdSettings.SETTINGS.birdSoundVolume = {
-    ['default'] = 5,
+    ['default'] = 6,
     ['serverOnly'] = false,
-    ['values'] = { 0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0 },
+    ['values'] = { 0, 0.08, 0.16, 0.24, 0.32, 0.4, 0.48, 0.56, 0.64, 0.72, 0.8 },
     ['strings'] = { "0%", "20%", "40%", "60%", "80%", "100%", "120%", "140%", "160%", "180%", "200%" }
 }
 
