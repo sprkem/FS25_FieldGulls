@@ -7,7 +7,6 @@
 ToolBirdFlockManager = {}
 local ToolBirdFlockManager_mt = Class(ToolBirdFlockManager)
 
--- Configuration
 ToolBirdFlockManager.MAX_BIRDS = 80                  -- Maximum number of birds around the tool
 ToolBirdFlockManager.SPAWN_INTERVAL = 500            -- Spawn one bird every 500ms (instead of all at once)
 ToolBirdFlockManager.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
@@ -76,7 +75,6 @@ function ToolBirdFlockManager.new(vehicle, workAreaType)
     self.soundStartTime = nil -- When spawning started (for 8s delay)
     self.soundStarted = false -- Track if sound has started
 
-    -- Register with BirdManager for independent updates
     if BirdManager then
         BirdManager:registerFlockManager(vehicle, self)
     end
@@ -93,7 +91,6 @@ function ToolBirdFlockManager:activate()
         return false
     end
 
-    -- If despawning is in progress, cancel it (regardless of isActive state)
     if self.isDespawning then
         self:cancelDespawnTimer()
 
@@ -102,16 +99,13 @@ function ToolBirdFlockManager:activate()
         self.birdsSpawned = self.numBirdsSpawned >= ToolBirdFlockManager.MAX_BIRDS
         self.lastSpawnTime = g_time
 
-        -- Reactivate if we were inactive
         if not self.isActive then
             self.isActive = true
 
-            -- Re-register with BirdManager for updates
             if BirdManager and self.vehicle then
                 BirdManager:registerFlockManager(self.vehicle, self)
             end
 
-            -- Restart sound if needed
             if not self.soundStarted then
                 self.soundStartTime = g_time
                 self:initializeSound()
@@ -130,7 +124,6 @@ function ToolBirdFlockManager:activate()
     self.numBirdsSpawned = 0
     self.lastSpawnTime = g_time
 
-    -- Re-register with BirdManager for updates
     if BirdManager and self.vehicle then
         BirdManager:registerFlockManager(self.vehicle, self)
     end
@@ -168,12 +161,9 @@ function ToolBirdFlockManager:cancelDespawnTimer()
     self.despawnTimer = 0
     self.despawnTimerActive = false
 
-    -- Also stop any ongoing gradual despawn process
     if self.isDespawning then
         self.isDespawning = false
         self.numBirdsDespawned = 0
-        -- Birds that haven't been marked for despawn yet will continue normal feeding
-        -- Birds already marked for despawn (in despawningBirds array) will continue flying away
     end
 end
 
@@ -273,10 +263,7 @@ function ToolBirdFlockManager:spawnOneBird()
         return false
     end
 
-    -- Get current vehicle position
     local vehicleX, vehicleY, vehicleZ = getWorldTranslation(self.vehicle.rootNode)
-
-    -- Get the tool's current facing direction
     local dx, _, dz = localDirectionToWorld(self.vehicle.rootNode, 0, 0, 1)
     local movementDirection = math.atan2(dx, dz)
 
@@ -287,8 +274,6 @@ function ToolBirdFlockManager:spawnOneBird()
 
     -- Spread birds in a wide radius for initial spawn
     local lateralOffset = (i / ToolBirdFlockManager.MAX_BIRDS - 0.5) * 65.0
-
-    -- Calculate spawn position: vehicle + lateral offset perpendicular + 50m backward
     local longitudinalOffset = ToolBirdFlockManager.SPAWN_DISTANCE_BEHIND + (math.random() - 0.5) * 5 -- 50m ±2.5m
 
     local spawnX = vehicleX + math.sin(perpAngle) * lateralOffset -
@@ -301,11 +286,9 @@ function ToolBirdFlockManager:spawnOneBird()
     local spawnY = terrainY + ToolBirdFlockManager.SPAWN_HEIGHT_ABOVE_TERRAIN +
         (math.random() - 0.5) * 5 -- ±2.5m variation
 
-    -- Create a SimpleBirdDirect (has built-in state machine)
     local bird = SimpleBirdDirect.new(spawnX, spawnY, spawnZ, self)
 
     if bird then
-        -- Track it
         table.insert(self.spawnedBirds, bird)
         self.numBirdsSpawned = self.numBirdsSpawned + 1
         return true
@@ -319,11 +302,9 @@ end
 ---
 function ToolBirdFlockManager:cleanup()
     if #self.spawnedBirds == 0 then
-        -- No birds to despawn, fully deactivate and unregister
         self.isActive = false
         self:stopSound()
 
-        -- Unregister from BirdManager when fully inactive
         if BirdManager and self.vehicle then
             BirdManager:unregisterFlockManager(self.vehicle)
         end
@@ -337,48 +318,34 @@ function ToolBirdFlockManager:cleanup()
 
     -- Despawn the first bird immediately
     self:despawnOneBird()
-
-    -- Stop spawning new ones, but keep updating existing/despawning birds
     self.isActive = false
-
-    -- Note: Sound continues playing until last bird starts flying away
 end
 
 ---
 -- Despawn a single bird (called periodically to gradually despawn all birds)
 ---
 function ToolBirdFlockManager:despawnOneBird()
-    -- Check if we have any birds left to despawn
     if #self.spawnedBirds == 0 then
         self.isDespawning = false
         return false
     end
 
-    -- Always take the first bird from the array
     local bird = self.spawnedBirds[1]
-
     if bird and bird.rootNode and entityExists(bird.rootNode) then
-        -- Request bird to enter despawning state
-        -- State machine will handle flying away automatically
         if bird.requestDespawn then
             bird:requestDespawn()
         end
 
-        -- Move to despawning list for tracking
         table.insert(self.despawningBirds, bird)
     end
 
-    -- Remove this bird from spawnedBirds immediately
     table.remove(self.spawnedBirds, 1)
     self.numBirdsDespawned = self.numBirdsDespawned + 1
 
-    -- Check if all birds have been marked for despawn
     if #self.spawnedBirds == 0 then
         self.isDespawning = false
         self.birdsSpawned = false
         self.numBirdsSpawned = 0
-
-        -- Stop sound now that last bird has started flying away
         self:stopSound()
     end
 
@@ -433,17 +400,14 @@ function ToolBirdFlockManager:initializeSound()
     self.soundNode = createAudioSource(sampleName, soundFilePath, outerRadius, innerRadius, soundVolume, loops)
 
     if self.soundNode and self.soundNode ~= 0 then
-        -- Get the sample from the audio source
         self.soundSample = getAudioSourceSample(self.soundNode)
 
         if self.soundSample and self.soundSample ~= 0 then
             setSampleGroup(self.soundSample, AudioGroup.ENVIRONMENT)
             setAudioSourceAutoPlay(self.soundNode, false)
 
-            -- Link audio source to our transform node so it moves with the flock
             link(self.soundTransform, self.soundNode)
         else
-            -- Failed to get sample - cleanup
             delete(self.soundNode)
             delete(self.soundTransform)
             self.soundNode = nil
@@ -451,7 +415,6 @@ function ToolBirdFlockManager:initializeSound()
             self.soundSample = nil
         end
     else
-        -- Failed to create audio source - cleanup
         delete(self.soundTransform)
         self.soundTransform = nil
     end
@@ -469,10 +432,7 @@ function ToolBirdFlockManager:updateSoundPosition()
         return
     end
 
-    -- Get current vehicle position
     local vehicleX, vehicleY, vehicleZ = getWorldTranslation(self.vehicle.rootNode)
-
-    -- Update sound transform position
     setTranslation(self.soundTransform, vehicleX, vehicleY, vehicleZ)
 end
 
@@ -497,13 +457,11 @@ function ToolBirdFlockManager:stopSound()
         end
     end
 
-    -- Delete audio source node
     if self.soundNode and self.soundNode ~= 0 then
         delete(self.soundNode)
         self.soundNode = nil
     end
 
-    -- Delete transform node
     if self.soundTransform and self.soundTransform ~= 0 then
         delete(self.soundTransform)
         self.soundTransform = nil

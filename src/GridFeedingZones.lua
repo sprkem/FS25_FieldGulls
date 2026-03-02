@@ -7,7 +7,7 @@ GridFeedingZones = {}
 local GridFeedingZones_mt = Class(GridFeedingZones)
 
 -- Configuration
-GridFeedingZones.GRID_SIZE = 2          -- 2m x 2m grid cells
+GridFeedingZones.GRID_SIZE = 1            -- 1m x 1m grid cells
 GridFeedingZones.CELL_EXPIRE_TIME = 30000 -- Cells expire after 30 seconds (ms)
 
 ---
@@ -38,19 +38,19 @@ end
 ---
 function GridFeedingZones.new()
     local self = setmetatable({}, GridFeedingZones_mt)
-    
+
     -- Store cells as a flat table with grid keys
     -- Each entry: { gridX, gridZ, timestamp, key }
     self.cells = {}
-    
+
     -- Index for fast spatial queries
     -- Structure: gridX -> gridZ -> cell
     self.spatialIndex = {}
-    
+
     -- Ordered list of cells by timestamp (newest first)
     -- Each entry is a reference to the cell in self.cells
     self.cellsByTimestamp = {}
-    
+
     return self
 end
 
@@ -61,13 +61,13 @@ end
 function GridFeedingZones:addCell(x, z)
     local gridX, gridZ = GridFeedingZones.getGridPosition(x, z)
     local key = GridFeedingZones.getGridKey(gridX, gridZ)
-    
+
     -- Check if cell already exists
     if self.cells[key] then
         -- Cell already tracked, don't update timestamp (preserve original expiration)
         return
     end
-    
+
     -- Create new cell
     local cell = {
         gridX = gridX,
@@ -75,15 +75,15 @@ function GridFeedingZones:addCell(x, z)
         timestamp = g_time,
         key = key
     }
-    
+
     self.cells[key] = cell
-    
+
     -- Add to spatial index
     if not self.spatialIndex[gridX] then
         self.spatialIndex[gridX] = {}
     end
     self.spatialIndex[gridX][gridZ] = cell
-    
+
     -- Add to timestamp-ordered list (newest first)
     table.insert(self.cellsByTimestamp, 1, cell)
 end
@@ -94,15 +94,15 @@ end
 ---
 function GridFeedingZones:removeCell(gridX, gridZ)
     local key = GridFeedingZones.getGridKey(gridX, gridZ)
-    
+
     if self.cells[key] then
         local cell = self.cells[key]
         self.cells[key] = nil
-        
+
         -- Remove from spatial index
         if self.spatialIndex[gridX] and self.spatialIndex[gridX][gridZ] then
             self.spatialIndex[gridX][gridZ] = nil
-            
+
             -- Clean up empty gridX entries
             local isEmpty = true
             for _ in pairs(self.spatialIndex[gridX]) do
@@ -113,7 +113,7 @@ function GridFeedingZones:removeCell(gridX, gridZ)
                 self.spatialIndex[gridX] = nil
             end
         end
-        
+
         -- Remove from timestamp-ordered list
         for i, orderedCell in ipairs(self.cellsByTimestamp) do
             if orderedCell == cell then
@@ -130,7 +130,7 @@ end
 function GridFeedingZones:removeExpiredCells()
     local currentTime = g_time
     local expireTime = currentTime - GridFeedingZones.CELL_EXPIRE_TIME
-    
+
     -- Collect keys to remove (can't modify table while iterating)
     local toRemove = {}
     for key, cell in pairs(self.cells) do
@@ -138,7 +138,7 @@ function GridFeedingZones:removeExpiredCells()
             table.insert(toRemove, cell)
         end
     end
-    
+
     -- Remove expired cells
     for _, cell in ipairs(toRemove) do
         self:removeCell(cell.gridX, cell.gridZ)
@@ -165,7 +165,7 @@ function GridFeedingZones:getWorkAreaPosition()
     if #self.cellsByTimestamp == 0 then
         return nil, nil
     end
-    
+
     local newestCell = self.cellsByTimestamp[1]
     return newestCell.gridX, newestCell.gridZ
 end
@@ -181,13 +181,13 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
     if #self.cellsByTimestamp == 0 then
         return nil, nil
     end
-    
+
     local selectedCell = nil
-    local MIN_DISTANCE_FROM_TOOL = 2.0  -- Minimum 2 meters from tool
-    
-    -- 70% chance: Pick randomly from top 10 most recent cells
-    -- 30% chance: Pick weighted by inverse distance
-    if math.random() < 0.70 then
+    local MIN_DISTANCE_FROM_TOOL = 2.0 -- Minimum 2 meters from tool
+
+    -- 75% chance: Pick randomly from top 10 most recent cells
+    -- 25% chance: Pick weighted by inverse distance
+    if math.random() < 0.75 then
         -- Build list of valid cells (excluding those within 2m of tool)
         local validCells = {}
         for i = 1, math.min(20, #self.cellsByTimestamp) do
@@ -195,17 +195,17 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
             local dx = cell.gridX - vehicleX
             local dz = cell.gridZ - vehicleZ
             local distFromTool = math.sqrt(dx * dx + dz * dz)
-            
+
             if distFromTool >= MIN_DISTANCE_FROM_TOOL then
                 table.insert(validCells, cell)
             end
         end
-        
+
         -- Check if we have any valid cells
         if #validCells == 0 then
             return nil, nil
         end
-        
+
         -- Pick randomly from valid cells (up to first 10)
         local endIndex = math.min(10, #validCells)
         local randomIndex = math.random(1, endIndex)
@@ -216,23 +216,23 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
         local validCells = {}
         local weights = {}
         local totalWeight = 0
-        
+
         -- Consider recent cells, excluding those too close to the tool
         for i = 1, #self.cellsByTimestamp do
             local cell = self.cellsByTimestamp[i]
-            
+
             -- Check distance from tool
             local dxTool = cell.gridX - vehicleX
             local dzTool = cell.gridZ - vehicleZ
             local distFromTool = math.sqrt(dxTool * dxTool + dzTool * dzTool)
-            
+
             if distFromTool >= MIN_DISTANCE_FROM_TOOL then
                 -- Calculate weight based on distance to bird
                 local dx = cell.gridX - birdX
                 local dz = cell.gridZ - birdZ
                 local distanceSq = dx * dx + dz * dz
                 local distance = math.sqrt(distanceSq)
-                
+
                 -- Inverse distance weight (closer to bird = higher weight)
                 local weight = 1.0 / (distance + 1.0)
                 table.insert(validCells, cell)
@@ -240,16 +240,16 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
                 totalWeight = totalWeight + weight
             end
         end
-        
+
         -- Check if we have any valid cells
         if #validCells == 0 then
             return nil, nil
         end
-        
+
         -- Weighted random selection
         local randomValue = math.random() * totalWeight
         local cumulativeWeight = 0
-        
+
         for i = 1, #validCells do
             cumulativeWeight = cumulativeWeight + weights[i]
             if randomValue <= cumulativeWeight then
@@ -257,24 +257,24 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
                 break
             end
         end
-        
+
         -- Fallback: pick first valid cell if weighted selection failed
         if not selectedCell and #validCells > 0 then
             selectedCell = validCells[1]
         end
     end
-    
+
     -- Safety check: make sure we have a valid cell
     if not selectedCell then
         return nil, nil
     end
-    
+
     -- Get random position within selected cell
     local targetX, targetZ = GridFeedingZones.getRandomPositionInCell(selectedCell.gridX, selectedCell.gridZ)
-    
+
     -- Remove the selected cell
     self:removeCell(selectedCell.gridX, selectedCell.gridZ)
-    
+
     return targetX, targetZ
 end
 
@@ -286,39 +286,29 @@ end
 -- @return table: Array of {gridX, gridZ} cells
 ---
 function GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
+    local minX = math.min(sx, wx, hx)
+    local maxX = math.max(sx, wx, hx)
+    local minZ = math.min(sz, wz, hz)
+    local maxZ = math.max(sz, wz, hz)
+
+    local startGridX = math.floor(minX / GridFeedingZones.GRID_SIZE) * GridFeedingZones.GRID_SIZE
+    local endGridX = math.floor(maxX / GridFeedingZones.GRID_SIZE) * GridFeedingZones.GRID_SIZE
+    local startGridZ = math.floor(minZ / GridFeedingZones.GRID_SIZE) * GridFeedingZones.GRID_SIZE
+    local endGridZ = math.floor(maxZ / GridFeedingZones.GRID_SIZE) * GridFeedingZones.GRID_SIZE
+
     local cells = {}
-    local cellSet = {} -- Use set to avoid duplicates
-    
-    -- Calculate bounding box
-    local minX = math.min(sx, wx, hx, sx + wx - hx, sx + hx - wx, wx + hx - sx)
-    local maxX = math.max(sx, wx, hx, sx + wx - hx, sx + hx - wx, wx + hx - sx)
-    local minZ = math.min(sz, wz, hz, sz + wz - hz, sz + hz - wz, wz + hz - sz)
-    local maxZ = math.max(sz, wz, hz, sz + wz - hz, sz + hz - wz, wz + hz - sz)
-    
-    -- Sample points in a grid pattern across the work area
-    local gridSize = GridFeedingZones.GRID_SIZE
-    local samples = 5 -- Sample 5x5 grid across work area
-    
-    for i = 0, samples do
-        for j = 0, samples do
-            local u = i / samples
-            local v = j / samples
-            
-            -- Interpolate position in the parallelogram
-            local x = sx + (wx - sx) * u + (hx - sx) * v
-            local z = sz + (wz - sz) * u + (hz - sz) * v
-            
-            -- Get grid cell
-            local gridX, gridZ = GridFeedingZones.getGridPosition(x, z)
-            local key = GridFeedingZones.getGridKey(gridX, gridZ)
-            
-            if not cellSet[key] then
-                cellSet[key] = true
-                table.insert(cells, { gridX = gridX, gridZ = gridZ })
-            end
+
+    -- Iterate through all grid cells in the bounding box
+    for gx = startGridX, endGridX, GridFeedingZones.GRID_SIZE do
+        for gz = startGridZ, endGridZ, GridFeedingZones.GRID_SIZE do
+            local gridX, gridZ = GridFeedingZones.getGridPosition(
+                gx + GridFeedingZones.GRID_SIZE / 2,
+                gz + GridFeedingZones.GRID_SIZE / 2
+            )
+            table.insert(cells, { gridX = gridX, gridZ = gridZ })
         end
     end
-    
+
     return cells
 end
 
@@ -327,11 +317,10 @@ end
 -- @param dt: Delta time (ms)
 ---
 function GridFeedingZones:update(dt)
-    -- Remove expired cells periodically (every second)
     if not self.lastCleanupTime then
         self.lastCleanupTime = 0
     end
-    
+
     self.lastCleanupTime = self.lastCleanupTime + dt
     if self.lastCleanupTime >= 1000 then
         self:removeExpiredCells()
@@ -358,6 +347,3 @@ function GridFeedingZones:clear()
     self.cells = {}
     self.spatialIndex = {}
 end
-
--- Global instance (created by BirdManager)
-g_gridFeedingZones = nil

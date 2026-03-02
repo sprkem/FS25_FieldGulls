@@ -12,10 +12,8 @@ PlowExtension = {}
 -- @param dt: Delta time
 ---
 function PlowExtension:processPlowArea(superFunc, workArea, dt)
-    -- Call original function first
-    local changedArea, totalArea = superFunc(self, workArea, dt)
+    local r1, r2 = superFunc(self, workArea, dt)
 
-    -- Track grid cells for bird feeding
     if g_gridFeedingZones then
         local sx, sy, sz = getWorldTranslation(workArea.start)
         local wx, wy, wz = getWorldTranslation(workArea.width)
@@ -30,7 +28,7 @@ function PlowExtension:processPlowArea(superFunc, workArea, dt)
         end
     end
 
-    return changedArea, totalArea
+    return r1, r2
 end
 
 ---
@@ -39,21 +37,17 @@ end
 -- @param dt: Delta time in milliseconds
 ---
 function PlowExtension:onEndWorkAreaProcessing(superFunc, dt)
-    -- Call original function
     if superFunc ~= nil then
         superFunc(self, dt)
     end
 
-    -- Initialize birds data if needed
     if not self.toolBirdsData or not self.toolBirdsData.initialized then
         ToolBirdsExtension:initialize(self, WorkAreaType.PLOW)
     end
 
-    -- Determine if plow is currently working
     local spec = self.spec_plow
     local isCurrentlyWorking = spec and spec.isWorking or false
 
-    -- Update bird spawning logic
     ToolBirdsExtension:onUpdate(self, dt, isCurrentlyWorking)
 end
 
@@ -62,10 +56,8 @@ end
 -- @param superFunc: Original function
 ---
 function PlowExtension:onDelete(superFunc)
-    -- Cleanup our extension
     ToolBirdsExtension:onDelete(self)
 
-    -- Call original function
     if superFunc ~= nil then
         superFunc(self)
     end
@@ -86,4 +78,3 @@ Plow.onDelete = Utils.overwrittenFunction(
     Plow.onDelete,
     PlowExtension.onDelete
 )
-

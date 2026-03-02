@@ -15,15 +15,12 @@ BirdConfig.config = nil -- Shared config loaded once
 -- @return attributes table with filename, nodeIndex, and animations
 ---
 function BirdConfig.loadAttributesFromXML(xmlFile, key)
-    -- Load basic asset info
     local filename = getXMLString(xmlFile, key .. ".asset#filename")
     local modName = getXMLString(xmlFile, key .. ".asset#modName")
 
-    -- Construct full path: if modName is specified, use DLC mod directory
     if modName and modName ~= "" and g_modNameToDirectory and g_modNameToDirectory[modName] then
         filename = g_modNameToDirectory[modName] .. filename
     else
-        -- Fallback: use BirdConfig.dir if modName lookup fails
         filename = BirdConfig.dir .. filename
     end
 
@@ -33,13 +30,11 @@ function BirdConfig.loadAttributesFromXML(xmlFile, key)
         animCharSetNode = getXMLString(xmlFile, key .. ".animation#animCharSetNode"),
         shapeNodeIndex = getXMLString(xmlFile, key .. ".animation#shapeNode"),
         animations = {},
-        soundGroups = {}, -- Will be populated with loaded sounds
-        -- Behavior settings (with defaults)
+        soundGroups = {},
         groundIdleTimeMin = getXMLFloat(xmlFile, key .. ".behavior#groundIdleTimeMin") or 0.5,
         groundIdleTimeMax = getXMLFloat(xmlFile, key .. ".behavior#groundIdleTimeMax") or 2.0
     }
 
-    -- Load all animation definitions (frame-based animations only)
     local x = 0
     while true do
         local animKey = string.format("%s.animation.animation(%d)", key, x)
@@ -68,7 +63,6 @@ end
 -- @return attributes table or nil on failure
 ---
 function BirdConfig.loadConfig()
-    -- Return cached config if already loaded
     if BirdConfig.config then
         return BirdConfig.config
     end
@@ -78,18 +72,15 @@ function BirdConfig.loadConfig()
     local xmlFile = loadXMLFile("BirdSpeciesConfig", xmlFilename)
 
     if xmlFile and xmlFile ~= 0 then
-        -- Load basic attributes
         BirdConfig.config = BirdConfig.loadAttributesFromXML(xmlFile, "species")
 
         if BirdConfig.config then
-            -- Load sound groups (simplified - just gets file paths from XML)
             local baseDirectory = BirdConfig.dir
             BirdConfig.config.soundGroups = BirdConfig.loadSoundGroupsFromXML(
                 xmlFile,
                 baseDirectory
             )
 
-            -- Count sound groups manually
             local soundGroupCount = 0
             for _ in pairs(BirdConfig.config.soundGroups or {}) do
                 soundGroupCount = soundGroupCount + 1
@@ -128,7 +119,6 @@ end
 function BirdConfig.loadSoundGroupsFromXML(xmlFile, baseDirectory)
     local soundGroups = {}
 
-    -- Iterate through all sound groups
     local soundIndex = 0
     while true do
         local soundKey = string.format("species.sounds.sound(%d)", soundIndex)
@@ -156,12 +146,9 @@ function BirdConfig.loadSoundGroupsFromXML(xmlFile, baseDirectory)
 
                 local filename = getXMLString(xmlFile, sampleKey .. "#filename")
                 if filename then
-                    -- Handle path resolution
                     if filename:find("$data") then
-                        -- Replace $data with game data path
                         filename = filename:gsub("$data", getUserProfileAppPath() .. "data")
                     else
-                        -- Relative path - prepend base directory
                         filename = baseDirectory .. filename
                     end
                     table.insert(soundGroup.fileNames, filename)
@@ -170,7 +157,6 @@ function BirdConfig.loadSoundGroupsFromXML(xmlFile, baseDirectory)
                 sampleIndex = sampleIndex + 1
             end
 
-            -- Only add sound group if it has file paths
             if #soundGroup.fileNames > 0 then
                 soundGroups[soundGroupName] = soundGroup
             end

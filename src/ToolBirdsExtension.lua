@@ -52,9 +52,6 @@ function ToolBirdsExtension:onUpdate(vehicle, dt, isCurrentlyWorking)
             data.flockManager:startDespawnTimer()
         end
     end
-
-    -- NOTE: Flock manager updates (including timer countdown) are now handled by BirdManager
-    -- This ensures birds continue updating even when vehicle is optimized/inactive
 end
 
 ---
@@ -68,15 +65,11 @@ function ToolBirdsExtension:activateFlockManager(vehicle)
         return
     end
 
-    -- Create flock manager if it doesn't exist
     if not data.flockManager then
         data.flockManager = ToolBirdFlockManager.new(vehicle, data.workAreaType)
     end
 
-    -- Activate the flock manager
-    if data.flockManager:activate() then
-        -- Spawning will happen automatically in update()
-    end
+    data.flockManager:activate()
 end
 
 ---
@@ -90,8 +83,6 @@ function ToolBirdsExtension:deactivateFlockManager(vehicle)
         return
     end
 
-    -- Cleanup will be called by flock manager when timer expires
-    -- Just ensure cleanup happens now
     data.flockManager:cleanup()
 end
 
@@ -102,13 +93,11 @@ end
 function ToolBirdsExtension:onDelete(vehicle)
     if vehicle.toolBirdsData and vehicle.toolBirdsData.flockManager then
         ToolBirdsExtension:deactivateFlockManager(vehicle)
-        
-        -- Unregister from BirdManager
+
         if BirdManager then
             BirdManager:unregisterFlockManager(vehicle)
         end
-        
+
         vehicle.toolBirdsData = nil
     end
 end
-

@@ -18,7 +18,6 @@ function CurvedPathPlanner.new(startX, startY, startZ, endX, endY, endZ, curvatu
 
     curvature = curvature or 0.5
 
-    -- Store start and end points
     self.startX = startX
     self.startY = startY
     self.startZ = startZ
@@ -27,11 +26,8 @@ function CurvedPathPlanner.new(startX, startY, startZ, endX, endY, endZ, curvatu
     self.endY = endY
     self.endZ = endZ
 
-    -- Calculate control points for cubic Bezier curve
-    -- P0 = start, P1 = control1, P2 = control2, P3 = end
     self:calculateControlPoints(curvature)
 
-    -- Precompute path segments for efficient lookup
     self.segments = 20 -- Number of segments to divide the curve
     self.segmentPoints = {}
     self:precomputeSegments()
@@ -197,7 +193,6 @@ function CurvedPathPlanner:getPositionAtDistance(distance)
         local segmentLength = math.sqrt(dx * dx + dy * dy + dz * dz)
 
         if accumulatedLength + segmentLength >= distance then
-            -- We're in this segment
             local segmentProgress = (distance - accumulatedLength) / segmentLength
 
             local x = p1.x + dx * segmentProgress

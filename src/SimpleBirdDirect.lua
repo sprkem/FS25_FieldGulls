@@ -55,11 +55,11 @@ function SimpleBirdDirect.new(x, y, z, manager)
     -- Animation state tracking (frame-based only)
     self.currentAnimName = nil
     self.pendingAnimName = nil  -- Animation to apply once model loads
-    self.animationTime = 0  -- Current time within animation (MILLISECONDS)
-    self.animationStartTime = 0  -- Start time in clip (MILLISECONDS)
-    self.animationEndTime = 0  -- End time in clip (MILLISECONDS)
-    self.animationSpeed = 1.0  -- Playback speed
-    self.clipDuration = 0  -- Total clip duration (MILLISECONDS)
+    self.animationTime = 0      -- Current time within animation (MILLISECONDS)
+    self.animationStartTime = 0 -- Start time in clip (MILLISECONDS)
+    self.animationEndTime = 0   -- End time in clip (MILLISECONDS)
+    self.animationSpeed = 1.0   -- Playback speed
+    self.clipDuration = 0       -- Total clip duration (MILLISECONDS)
 
     -- Get bird attributes from shared config
     self.attributes = BirdConfig.getConfig()
@@ -86,11 +86,7 @@ function SimpleBirdDirect:loadVisualModel()
     end
 
     self.isLoading = true
-
-    -- Use filename from attributes (loaded from shared config)
     local modelPath = self.attributes.filename
-
-    -- Using async loading for better performance
     self.loadRequestId = g_i3DManager:loadSharedI3DFileAsync(
         modelPath,
         false, -- callOnCreate
@@ -160,7 +156,6 @@ function SimpleBirdDirect:onBirdModelLoaded(i3dNode, failedReason, args)
         self.visualNode = birdNode
         self.sceneNode = sceneNode
 
-        -- Setup animations using the skeleton node
         self:setupAnimations(animCharSetNode or sceneNode)
     end
 end
@@ -182,7 +177,6 @@ function SimpleBirdDirect:setupAnimations(animNode)
         return
     end
 
-    -- Get the AnimCharSet from the provided node
     local testAnimCharSet = getAnimCharacterSet(animNode)
     if testAnimCharSet and testAnimCharSet ~= 0 then
         self.animCharSet = testAnimCharSet
@@ -190,7 +184,6 @@ function SimpleBirdDirect:setupAnimations(animNode)
         return
     end
 
-    -- Start with the animation appropriate for current state (or fly as default)
     local animName = "fly"
     if self.pendingAnimName then
         animName = self.pendingAnimName
@@ -198,7 +191,7 @@ function SimpleBirdDirect:setupAnimations(animNode)
     elseif self.stateMachine and self.stateMachine.getCurrentStateAnimation then
         animName = self.stateMachine:getCurrentStateAnimation()
     end
-    
+
     self:setAnimationByName(animName)
 end
 
@@ -211,7 +204,7 @@ function SimpleBirdDirect:setAnimationByName(animationName)
     if not anim then
         return
     end
-    
+
     -- If model not loaded yet, store as pending animation
     if not self.animCharSet then
         self.pendingAnimName = animationName
@@ -223,24 +216,24 @@ function SimpleBirdDirect:setAnimationByName(animationName)
         if anim.startFrame and anim.endFrame then
             -- Get clip duration and calculate ms per frame (24 FPS = 41.67ms/frame)
             self.clipDuration = getAnimClipDuration(self.animCharSet, 0)
-            local msPerFrame = 1000.0 / 24.0  -- 24 FPS
-            
+            local msPerFrame = 1000.0 / 24.0 -- 24 FPS
+
             -- Calculate time positions
             local startTimeMs = anim.startFrame * msPerFrame
             local endTimeMs = anim.endFrame * msPerFrame
-            
+
             -- Setup animation for manual scrubbing (BaleWrapper pattern)
             clearAnimTrackClip(self.animCharSet, 0)
             assignAnimTrackClip(self.animCharSet, 0, 0)
-            setAnimTrackLoopState(self.animCharSet, 0, false)  -- Disable auto-looping
-            
+            setAnimTrackLoopState(self.animCharSet, 0, false) -- Disable auto-looping
+
             -- Store animation parameters (in MILLISECONDS)
             self.animationStartTime = startTimeMs
             self.animationEndTime = endTimeMs
             self.animationTime = startTimeMs
             self.animationSpeed = anim.speed or 1.0
             self.currentAnimName = animationName
-            
+
             -- Set initial frame
             enableAnimTrack(self.animCharSet, 0)
             setAnimTrackTime(self.animCharSet, 0, startTimeMs, true)
@@ -322,27 +315,23 @@ function SimpleBirdDirect:moveToCurved(x, y, z, speed, curvature)
 end
 
 function SimpleBirdDirect:update(dt)
-    -- Update state machine first
     if self.stateMachine then
         self.stateMachine:update(dt)
     end
-    
-    -- Update frame-based animations manually (BaleWrapper pattern)
+
     if self.animCharSet and self.animCharSet ~= 0 and self.clipDuration > 0 and self.animationEndTime > self.animationStartTime then
-        -- Advance animation time based on speed (dt is already in milliseconds)
         self.animationTime = self.animationTime + (dt * self.animationSpeed)
-        
+
         -- Loop animation when it reaches the end
         local animDuration = self.animationEndTime - self.animationStartTime
         while self.animationTime >= self.animationEndTime do
             self.animationTime = self.animationTime - animDuration
         end
-        
-        -- Ensure we don't go below start time
+
         if self.animationTime < self.animationStartTime then
             self.animationTime = self.animationStartTime
         end
-        
+
         -- Manual scrubbing: enable -> set time -> disable each frame
         enableAnimTrack(self.animCharSet, 0)
         setAnimTrackTime(self.animCharSet, 0, self.animationTime, true)
@@ -357,14 +346,11 @@ function SimpleBirdDirect:update(dt)
 
     -- Movement along curved path
     if self.usingCurvedPath and self.curvedPath then
-        -- Calculate distance to move this frame
         local moveDistance = self.moveSpeed * dtSeconds
         self.pathDistance = self.pathDistance + moveDistance
 
-        -- Get position on curve
         local newX, newY, newZ, completed = self.curvedPath:getPositionAtDistance(self.pathDistance)
 
-        -- Ensure bird doesn't go below terrain + minimum height
         local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, newX, newY, newZ)
         local minHeight = terrainY + self.flyHeight
         if newY < minHeight then
@@ -395,22 +381,16 @@ function SimpleBirdDirect:update(dt)
             self.isMoving = false
             self.usingCurvedPath = false
             self.curvedPath = nil
-
-            -- Notify state machine or flock manager that we reached the target
-            -- State machine will handle what to do next
             return
         end
     else
-        -- Straight line movement (legacy)
         local currentX, currentY, currentZ = self:getCurrentPosition()
 
-        -- Calculate direction to target
         local dx = self.targetX - currentX
         local dy = self.targetY - currentY
         local dz = self.targetZ - currentZ
         local distance3D = math.sqrt(dx * dx + dy * dy + dz * dz)
 
-        -- Check if we've reached the target (simple 3D distance check)
         local reachedTarget = distance3D < 0.5
         if reachedTarget then
             setWorldTranslation(self.rootNode, self.targetX, self.targetY, self.targetZ)
@@ -420,12 +400,10 @@ function SimpleBirdDirect:update(dt)
             return
         end
 
-        -- Check if we're diving to ground target
         local targetTerrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, self.targetX, 0, self
             .targetZ)
         local isGroundTarget = self.targetY < (targetTerrainY + self.flyHeight)
 
-        -- Normal straight-line movement
         local moveDistance = self.moveSpeed * dtSeconds
 
         -- Normalize direction
@@ -433,7 +411,6 @@ function SimpleBirdDirect:update(dt)
         dy = dy / distance3D
         dz = dz / distance3D
 
-        -- Clamp to remaining distance
         if moveDistance > distance3D then
             moveDistance = distance3D
         end
@@ -442,16 +419,12 @@ function SimpleBirdDirect:update(dt)
         local newY = currentY + dy * moveDistance
         local newZ = currentZ + dz * moveDistance
 
-        local beforeClamp = newY
-        local wasClampApplied = false
-
         -- Only apply terrain clamp for non-ground targets
         if not isGroundTarget then
             local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, newX, newY, newZ)
             local minHeight = terrainY + self.flyHeight
             if newY < minHeight then
                 newY = minHeight
-                wasClampApplied = true
             end
         end
 
@@ -459,7 +432,7 @@ function SimpleBirdDirect:update(dt)
 
         -- Orient the bird toward movement direction (only during active movement, not when landing)
         -- Check if we're about to reach target on next frame
-        local willReachTarget = distance3D < 1.0  -- Within 1m of target = about to land
+        local willReachTarget = distance3D < 1.0 -- Within 1m of target = about to land
         local moveDX = newX - currentX
         local moveDY = newY - currentY
         local moveDZ = newZ - currentZ
@@ -474,29 +447,24 @@ function SimpleBirdDirect:update(dt)
 end
 
 function SimpleBirdDirect:delete()
-    -- Cancel loading if still in progress
     if self.isLoading and self.loadRequestId then
         g_i3DManager:cancelStreamI3DFile(self.loadRequestId)
     end
 
-    -- Release the shared i3d file if loaded
     if self.loadRequestId then
         g_i3DManager:releaseSharedI3DFile(self.loadRequestId)
     end
 
-    -- Delete visual node
     if self.visualNode and self.visualNode ~= 0 then
         delete(self.visualNode)
         self.visualNode = nil
     end
 
-    -- Delete root node
     if self.rootNode and self.rootNode ~= 0 then
         delete(self.rootNode)
         self.rootNode = nil
     end
 
-    -- Clean up state machine
     self.stateMachine = nil
     self.curvedPath = nil
 end
@@ -529,14 +497,10 @@ function SimpleBirdDirect:setPitchAngle(pitchDegrees)
         return
     end
 
-    -- Convert degrees to radians
     local pitchRadians = math.rad(pitchDegrees)
 
-    -- Get current rotation to preserve yaw (horizontal direction)
     if self.visualNode then
         local _, currentYaw, _ = getRotation(self.visualNode)
-
-        -- Set new rotation with specified pitch
         setRotation(self.visualNode, pitchRadians, currentYaw, 0)
     end
 end
