@@ -22,13 +22,6 @@ function PlowExtension:processPlowArea(superFunc, workArea, dt)
         -- Get affected grid cells
         local cells = GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
 
-        -- Initialize frame cell counter if needed
-        if not self.birdCellsThisFrame then
-            self.birdCellsThisFrame = 0
-        end
-        
-        self.birdCellsThisFrame = self.birdCellsThisFrame + #cells
-
         -- Add cells to global grid system
         for _, cell in ipairs(cells) do
             g_gridFeedingZones:addCell(cell.gridX, cell.gridZ)
@@ -50,11 +43,6 @@ function PlowExtension:onEndWorkAreaProcessing(superFunc, dt)
 
     if not self.toolBirdsData or not self.toolBirdsData.initialized then
         ToolBirdsExtension:initialize(self, WorkAreaType.PLOW)
-    end
-
-    -- Reset frame cell counter
-    if self.birdCellsThisFrame then
-        self.birdCellsThisFrame = 0
     end
 
     local spec = self.spec_plow

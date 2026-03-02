@@ -6,37 +6,14 @@
 SowingMachineExtension = {}
 
 ---
--- Hook into sowing machine area processing to track grid cells for bird feeding
--- @param superFunc: Original processSowingMachineArea function
--- @param workArea: The work area being processed
+-- Hook into onStartWorkAreaProcessing to initialize frame tracking
+-- @param superFunc: Original function
 -- @param dt: Delta time
 ---
-function SowingMachineExtension:processSowingMachineArea(superFunc, workArea, dt)
-    local changedArea, totalArea = superFunc(self, workArea, dt)
-
-    -- Track grid cells for bird feeding if we're working
-    if changedArea and changedArea > 0 and g_gridFeedingZones then
-        local sx, sy, sz = getWorldTranslation(workArea.start)
-        local wx, wy, wz = getWorldTranslation(workArea.width)
-        local hx, hy, hz = getWorldTranslation(workArea.height)
-
-        -- Get affected grid cells
-        local cells = GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
-
-        -- Initialize frame cell counter if needed
-        if not self.birdCellsThisFrame then
-            self.birdCellsThisFrame = 0
-        end
-        
-        self.birdCellsThisFrame = self.birdCellsThisFrame + #cells
-
-        -- Add cells to global grid system
-        for _, cell in ipairs(cells) do
-            g_gridFeedingZones:addCell(cell.gridX, cell.gridZ)
-        end
+function SowingMachineExtension:onStartWorkAreaProcessing(superFunc, dt)
+    if superFunc ~= nil then
+        superFunc(self, dt)
     end
-
-    return changedArea, totalArea
 end
 
 ---
@@ -50,13 +27,30 @@ function SowingMachineExtension:onEndWorkAreaProcessing(superFunc, dt, hasProces
         superFunc(self, dt, hasProcessed)
     end
 
-    if not self.toolBirdsData or not self.toolBirdsData.initialized then
-        ToolBirdsExtension:initialize(self, WorkAreaType.SOWINGMACHINE)
+    -- Track work areas when processing happened
+    if hasProcessed and g_gridFeedingZones then
+        local workAreaSpec = self.spec_workArea
+        if workAreaSpec and workAreaSpec.workAreas then
+            for _, workArea in ipairs(workAreaSpec.workAreas) do
+                if workArea.type == WorkAreaType.SOWINGMACHINE then
+                    local sx, sy, sz = getWorldTranslation(workArea.start)
+                    local wx, wy, wz = getWorldTranslation(workArea.width)
+                    local hx, hy, hz = getWorldTranslation(workArea.height)
+
+                    -- Get affected grid cells
+                    local cells = GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
+
+                    -- Add cells to global grid system
+                    for _, cell in ipairs(cells) do
+                        g_gridFeedingZones:addCell(cell.gridX, cell.gridZ)
+                    end
+                end
+            end
+        end
     end
 
-    -- Reset frame cell counter
-    if self.birdCellsThisFrame then
-        self.birdCellsThisFrame = 0
+    if not self.toolBirdsData or not self.toolBirdsData.initialized then
+        ToolBirdsExtension:initialize(self, WorkAreaType.SOWINGMACHINE)
     end
 
     local spec = self.spec_sowingMachine
@@ -77,9 +71,9 @@ function SowingMachineExtension:onDelete(superFunc)
 end
 
 -- Hook into SowingMachine specialization
-SowingMachine.processSowingMachineArea = Utils.overwrittenFunction(
-    SowingMachine.processSowingMachineArea,
-    SowingMachineExtension.processSowingMachineArea
+SowingMachine.onStartWorkAreaProcessing = Utils.overwrittenFunction(
+    SowingMachine.onStartWorkAreaProcessing,
+    SowingMachineExtension.onStartWorkAreaProcessing
 )
 
 SowingMachine.onEndWorkAreaProcessing = Utils.overwrittenFunction(
