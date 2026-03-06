@@ -11,7 +11,7 @@ ToolBirdFlockManager.MAX_BIRDS = 80                  -- Maximum number of birds 
 ToolBirdFlockManager.SPAWN_INTERVAL = 500            -- Spawn one bird every 500ms (instead of all at once)
 ToolBirdFlockManager.DESPAWN_INTERVAL = 250          -- Despawn one bird every 250ms
 ToolBirdFlockManager.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind tractor
-ToolBirdFlockManager.SPAWN_HEIGHT_ABOVE_TERRAIN = 30 -- Birds spawn 30m above terrain
+ToolBirdFlockManager.SPAWN_HEIGHT_ABOVE_TERRAIN = 20 -- Birds spawn 20m above terrain
 ToolBirdFlockManager.DESPAWN_DELAY = 15000           -- Wait time before birds start flying away (milliseconds)
 ToolBirdFlockManager.DESPAWN_DURATION = 10000        -- How long birds fly away before being deleted (milliseconds)
 
