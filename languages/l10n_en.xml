@@ -8,5 +8,7 @@
 		<!-- Settings -->
 		<text name="setting_birds_birdSoundVolume" text="Bird Sound Volume"/>
 		<text name="setting_birds_birdSoundVolume_tooltip" text="Adjust the volume of bird sounds. Set to 0% to disable sounds."/>
+		<text name="setting_birds_maxBirds" text="Maximum Birds"/>
+		<text name="setting_birds_maxBirds_tooltip" text="Maximum number of birds that can spawn. Each flock will spawn between 50%-100% of this value."/>
 	</texts>
 </l10n>

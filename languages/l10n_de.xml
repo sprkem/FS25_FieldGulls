@@ -7,6 +7,6 @@
 		
 		<!-- Settings -->
 		<text name="setting_birds_birdSoundVolume" text="Vogellautstärke"/>
-		<text name="setting_birds_birdSoundVolume_tooltip" text="Passen Sie die Lautstärke der Vogelgeräusche an. Auf 0% setzen, um Geräusche zu deaktivieren."/>
-	</texts>
+		<text name="setting_birds_birdSoundVolume_tooltip" text="Passen Sie die Lautstärke der Vogelgeräusche an. Auf 0% setzen, um Geräusche zu deaktivieren."/>		<text name="setting_birds_maxBirds" text="Maximale Vögel"/>
+		<text name="setting_birds_maxBirds_tooltip" text="Maximale Anzahl der Vögel, die spawnen können. Jeder Schwarm wird zwischen 50-100% dieses Wertes spawnen."/>	</texts>
 </l10n>

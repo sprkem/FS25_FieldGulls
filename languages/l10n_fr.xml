@@ -7,6 +7,6 @@
 		
 		<!-- Settings -->
 		<text name="setting_birds_birdSoundVolume" text="Volume du Son des Oiseaux"/>
-		<text name="setting_birds_birdSoundVolume_tooltip" text="Ajustez le volume des sons d'oiseaux. Réglez sur 0% pour désactiver les sons."/>
-	</texts>
+		<text name="setting_birds_birdSoundVolume_tooltip" text="Ajustez le volume des sons d'oiseaux. Réglez sur 0% pour désactiver les sons."/>		<text name="setting_birds_maxBirds" text="Oiseaux maximum"/>
+		<text name="setting_birds_maxBirds_tooltip" text="Nombre maximum d'oiseaux pouvant apparaître. Chaque groupe apparaîtra entre 50% et 100% de cette valeur."/>	</texts>
 </l10n>

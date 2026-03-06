@@ -7,7 +7,8 @@ BirdSettings = {}
 BirdSettings.CONTROLS = {}
 
 BirdSettings.menuItems = {
-    'birdSoundVolume'
+    'birdSoundVolume',
+    'maxBirds'
 }
 
 -- SETTINGS DEFINITIONS
@@ -20,9 +21,17 @@ BirdSettings.SETTINGS.birdSoundVolume = {
     ['strings'] = { "0%", "20%", "40%", "60%", "80%", "100%", "120%", "140%", "160%", "180%", "200%" }
 }
 
+BirdSettings.SETTINGS.maxBirds = {
+    ['default'] = 8,
+    ['serverOnly'] = false,
+    ['values'] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 180, 200 },
+    ['strings'] = { "10", "20", "30", "40", "50", "60", "70", "80", "90", "100", "120", "140", "160", "180", "200" }
+}
+
 -- Current settings (stored locally, no network sync needed)
 BirdSettings.settings = {
-    birdSoundVolume = 1.0
+    birdSoundVolume = 1.0,
+    maxBirds = 80
 }
 
 function BirdSettings.getStateIndex(id, value)

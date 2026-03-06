@@ -93,6 +93,7 @@ function ToolBirdFlockManager.new(vehicle, workAreaType)
     self.lastDespawnTime = 0                                                            -- Track when last bird was despawned
     self.despawnTimer = 0                                                               -- Timer before starting gradual despawn (milliseconds)
     self.despawnTimerActive = false                                                     -- Whether the despawn timer is counting down
+    self.targetNumberOfBirds = nil                                                      -- Random target (50%-100% of max), set on activation
     self.workingWidth = ToolBirdFlockManager.getToolWorkingWidth(vehicle, workAreaType) -- Cache the working width
 
     -- Sound management (using g_soundManager for automatic indoor/outdoor handling)
@@ -120,9 +121,16 @@ function ToolBirdFlockManager:activate()
     if self.isDespawning then
         self:cancelDespawnTimer()
 
-        -- Keep existing birds and resume spawning to reach max
+        -- Set new random target if we don't have one (e.g., after full despawn)
+        if not self.targetNumberOfBirds then
+            local maxBirds = BirdSettings and BirdSettings.settings and BirdSettings.settings.maxBirds or 80
+            local minBirds = math.floor(maxBirds * 0.5)
+            self.targetNumberOfBirds = minBirds + math.random(0, maxBirds - minBirds)
+        end
+
+        -- Keep existing birds and resume spawning to reach target
         self.numBirdsSpawned = #self.spawnedBirds
-        self.birdsSpawned = self.numBirdsSpawned >= ToolBirdFlockManager.MAX_BIRDS
+        self.birdsSpawned = self.numBirdsSpawned >= self.targetNumberOfBirds
         self.lastSpawnTime = g_time
 
         if not self.isActive then
@@ -149,6 +157,13 @@ function ToolBirdFlockManager:activate()
     self.birdsSpawned = false
     self.numBirdsSpawned = 0
     self.lastSpawnTime = g_time
+
+    -- Set random target number of birds (50%-100% of max setting)
+    if not self.targetNumberOfBirds then
+        local maxBirds = BirdSettings and BirdSettings.settings and BirdSettings.settings.maxBirds or 80
+        local minBirds = math.floor(maxBirds * 0.5)
+        self.targetNumberOfBirds = minBirds + math.random(0, maxBirds - minBirds)
+    end
 
     if BirdManager and self.vehicle then
         BirdManager:registerFlockManager(self.vehicle, self)
@@ -255,7 +270,7 @@ function ToolBirdFlockManager:update(dt)
     end
 
     -- Gradually spawn birds over time (one every SPAWN_INTERVAL) - only when active
-    if self.isActive and not self.birdsSpawned and self.numBirdsSpawned < ToolBirdFlockManager.MAX_BIRDS then
+    if self.isActive and not self.birdsSpawned and self.targetNumberOfBirds and self.numBirdsSpawned < self.targetNumberOfBirds then
         if g_time - self.lastSpawnTime >= ToolBirdFlockManager.SPAWN_INTERVAL then
             self:spawnOneBird()
             self.lastSpawnTime = g_time
@@ -278,8 +293,8 @@ end
 -- Spawn a single bird (called periodically to gradually spawn all birds)
 ---
 function ToolBirdFlockManager:spawnOneBird()
-    if not self.isActive or self.numBirdsSpawned >= ToolBirdFlockManager.MAX_BIRDS then
-        if self.numBirdsSpawned >= ToolBirdFlockManager.MAX_BIRDS then
+    if not self.isActive or not self.targetNumberOfBirds or self.numBirdsSpawned >= self.targetNumberOfBirds then
+        if self.targetNumberOfBirds and self.numBirdsSpawned >= self.targetNumberOfBirds then
             self.birdsSpawned = true -- Mark spawning complete
         end
         return false
@@ -372,6 +387,7 @@ function ToolBirdFlockManager:despawnOneBird()
         self.isDespawning = false
         self.birdsSpawned = false
         self.numBirdsSpawned = 0
+        self.targetNumberOfBirds = nil  -- Reset target so new random value is picked on next activation
         self:stopSound()
     end
 
