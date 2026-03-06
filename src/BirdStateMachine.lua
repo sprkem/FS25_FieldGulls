@@ -40,6 +40,8 @@ function BirdStateMachine.new(bird)
         searchingHeight = 6.0,         -- Height to fly at when searching (10-20m)
         searchingDistance = 15.0,      -- Distance between search points (10-20m)
         searchingCheckInterval = 3000, -- Check for cells every 3 seconds
+        diveSpeed = 6.0,               -- Speed when diving to ground (m/s)
+        slowLandingSpeed = 4.0,        -- Speed during hover landing approach (m/s)
     }
 
     -- Enter the initial state to trigger behavior
@@ -257,17 +259,43 @@ function BirdStateMachine:enterDivingState()
         math.random() * (self.feedingConfig.maxGroundHeight - self.feedingConfig.minGroundHeight)
 
     -- Dive to ground with curved path
-    self.bird:moveToCurved(targetX, targetY, targetZ, 6.0, self.feedingConfig.arcCurvature)
+    self.bird:moveToCurved(targetX, targetY, targetZ, self.feedingConfig.diveSpeed, self.feedingConfig.arcCurvature)
 end
 
 function BirdStateMachine:updateDivingState(dt)
+    -- Check height above ground and switch to hoverDown animation when close
+    local currentX, currentY, currentZ = self.bird:getCurrentPosition()
+    local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, currentX, 0, currentZ)
+    local heightAboveGround = currentY - terrainY
+
+    -- Switch to hover animation when within 2 meters of ground
+    if heightAboveGround < 2.0 and self.bird.currentAnimName ~= SimpleBirdDirect.ANIM_HOVER then
+        if self.bird.setAnimationByName then
+            self.bird:setAnimationByName(SimpleBirdDirect.ANIM_HOVER)
+        end
+
+        -- Calculate and store forward-facing yaw for landing approach
+        if self.bird.hasTarget then
+            local dx = self.bird.targetX - currentX
+            local dz = self.bird.targetZ - currentZ
+            if dx ~= 0 or dz ~= 0 then
+                self.stateData.landingYaw = math.atan2(dx, dz)
+            end
+        end
+        
+        -- Slow down for realistic landing approach
+        self.bird.moveSpeed = self.feedingConfig.slowLandingSpeed
+    end
+
+    -- Continuously enforce level forward-facing rotation during hover landing phase
+    -- This overrides SimpleBirdDirect's automatic movement-based rotation
+    if heightAboveGround < 2.0 and self.stateData.landingYaw and self.bird.sceneNode then
+        -- Force level approach: pitch=0, roll=0, yaw=direction to target
+        setRotation(self.bird.sceneNode, 0, self.stateData.landingYaw, 0)
+    end
+
     -- Check if bird reached ground
     if not self.bird:getIsMoving() then
-        -- Verify we're at ground level
-        local currentX, currentY, currentZ = self.bird:getCurrentPosition()
-        local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, currentX, 0, currentZ)
-        local heightAboveGround = currentY - terrainY
-
         if heightAboveGround <= 0.5 then
             -- Successfully landed - transition to feeding
             self:setState(BirdStateMachine.STATE_FEEDING_GROUND)

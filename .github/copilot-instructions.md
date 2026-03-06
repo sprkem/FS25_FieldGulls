@@ -208,6 +208,25 @@ Higher curvature = more pronounced arc. Used for:
 - Arcing search loops (feeding cycle)
 - Natural-looking dives back to ground
 
+### Rotation System
+**How It Works**: SimpleBirdDirect automatically applies rotation based on movement direction every frame.
+
+**To Override Automatic Rotation**:
+1. Set rotation on `bird.sceneNode` (NOT visualNode or rootNode)
+2. Apply it **EVERY FRAME** in the state's update function
+3. Store desired rotation in `stateData` for persistence
+
+**Rotation Format**: `setRotation(node, pitch, yaw, roll)`
+- `pitch`: Nose up/down (radians) - positive = nose up
+- `yaw`: Horizontal direction (radians) - 0 = north, π/2 = east
+- `roll`: Wing tilt (radians) - positive = right wing down
+
+**Animation Rotation Requirements**:
+- `idleEat`: REQUIRES override - must be flat (pitch=0, roll=0) with preserved yaw
+- `hover`: REQUIRES override - must be level (pitch=0, roll=0) facing forward during landing
+- `fly`/`flyUp`: Uses automatic rotation based on movement direction
+- `glide`/`soar`: Uses automatic rotation based on movement direction
+
 ### State Machine Feeding Loop
 **Cycle**: FEEDING_GROUND → FEEDING_UP → FEEDING_ARC → FEEDING_GROUND (repeat)
 1. Peck ground for random 4-6 seconds
