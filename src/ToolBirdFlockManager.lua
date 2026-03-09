@@ -14,7 +14,7 @@ ToolBirdFlockManager.SPAWN_DISTANCE_BEHIND = 50      -- Birds spawn 50m behind t
 ToolBirdFlockManager.SPAWN_HEIGHT_ABOVE_TERRAIN = 20 -- Birds spawn 20m above terrain
 ToolBirdFlockManager.DESPAWN_DELAY = 15000           -- Wait time before birds start flying away (milliseconds)
 ToolBirdFlockManager.DESPAWN_DURATION = 10000        -- How long birds fly away before being deleted (milliseconds)
-ToolBirdFlockManager.NO_BIRDS_TIMEOUT_MINUTES = 60   -- Minutes before birds can spawn again after chance roll fails
+ToolBirdFlockManager.NO_BIRDS_TIMEOUT_MINUTES = 30   -- Minutes before birds can spawn again after chance roll fails
 
 ---
 -- Get the working width of the tool from its work areas
@@ -332,8 +332,8 @@ function ToolBirdFlockManager:update(dt)
         end
     end
 
-    -- Start looping sound 8 seconds after spawning begins
-    if self.isActive and not self.soundStarted and self.soundStartTime and (g_time - self.soundStartTime) >= 8000 then
+    -- Start looping sound 8 seconds after spawning begins AND at least 10 birds have spawned
+    if self.isActive and not self.soundStarted and self.soundStartTime and (g_time - self.soundStartTime) >= 8000 and #self.spawnedBirds >= 10 then
         self:startSound()
         self.soundStarted = true
     end
@@ -356,6 +356,11 @@ function ToolBirdFlockManager:spawnOneBird()
     end
 
     if not self.vehicle or not self.vehicle.rootNode then
+        return false
+    end
+
+    -- Check if there are any feeding cells available before spawning
+    if not g_gridFeedingZones or g_gridFeedingZones:getCellCount() == 0 then
         return false
     end
 
@@ -406,8 +411,8 @@ function ToolBirdFlockManager:updateOccupiedCells()
     local _, rotY, _ = getRotation(self.vehicle.rootNode)
 
     -- Get vehicle dimensions (use size properties or fallbacks)
-    local length = self.vehicle.sizeLength or 5.0
-    local width = self.vehicle.sizeWidth or 3.0
+    local length = self.vehicle.size.length
+    local width = self.vehicle.size.width
 
     -- Update occupied cells in the global system
     -- Use vehicle.rootNode as unique ID

@@ -7,11 +7,11 @@ GridFeedingZones = {}
 local GridFeedingZones_mt = Class(GridFeedingZones)
 
 -- Configuration
-GridFeedingZones.GRID_SIZE = 1          -- 1m x 1m grid cells
-GridFeedingZones.CELL_EXPIRE_TIME = 30000 -- Cells expire after 30 seconds (ms)
-GridFeedingZones.BUFFER_TIME = 8000      -- Time before moving to recently eaten (ms)
+GridFeedingZones.GRID_SIZE = 1                      -- 1m x 1m grid cells
+GridFeedingZones.CELL_EXPIRE_TIME = 90000           -- Cells expire after 90 seconds (ms)
+GridFeedingZones.BUFFER_TIME = 8000                 -- Time before moving to recently eaten (ms)
 GridFeedingZones.RECENTLY_EATEN_EXPIRE_TIME = 80000 -- Recently eaten cells expire after 80 seconds (ms)
-GridFeedingZones.MAX_RECENT_CELLS = 40    -- Max recent cells to consider for priority feeding
+GridFeedingZones.MAX_RECENT_CELLS = 40              -- Max recent cells to consider for priority feeding
 
 -- Pending cell buffer configuration (prevents birds landing where tractor just was)
 GridFeedingZones.PENDING_DELAY = 50 -- Delay before cells become available (ms)
@@ -29,8 +29,8 @@ function GridFeedingZones.getGridPosition(x, z)
     return gridX, gridZ
 end
 
-    ---
-    -- Get grid key for storing in table
+---
+-- Get grid key for storing in table
 -- @param gridX, gridZ: Grid coordinates
 -- @return string: Grid key
 ---
@@ -256,14 +256,14 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
         -- Pick randomly from recent cells (up to first 10), excluding occupied cells
         local validCells = {}
         local endIndex = math.min(10, math.min(GridFeedingZones.MAX_RECENT_CELLS, #self.cellsByTimestamp))
-        
+
         for i = 1, endIndex do
             local cell = self.cellsByTimestamp[i]
             if not self:isCellOccupied(cell.gridX, cell.gridZ) then
                 table.insert(validCells, cell)
             end
         end
-        
+
         if #validCells > 0 then
             local randomIndex = math.random(1, #validCells)
             selectedCell = validCells[randomIndex]
@@ -377,11 +377,12 @@ function GridFeedingZones:updateOccupiedCells(vehicleId, x, z, rotY, length, wid
     local halfWidth = width / 2
 
     -- Local corners (relative to vehicle center)
+    -- In local space: X = width (left/right), Z = length (forward/backward)
     local corners = {
-        { x = -halfLength, z = -halfWidth },
-        { x = halfLength,  z = -halfWidth },
-        { x = halfLength,  z = halfWidth },
-        { x = -halfLength, z = halfWidth }
+        { x = -halfWidth, z = -halfLength },
+        { x = halfWidth, z = -halfLength },
+        { x = halfWidth, z = halfLength },
+        { x = -halfWidth, z = halfLength }
     }
 
     -- Rotate corners and convert to world coordinates
@@ -418,6 +419,16 @@ function GridFeedingZones:updateOccupiedCells(vehicleId, x, z, rotY, length, wid
             self.occupiedCells[vehicleId][key] = true
         end
     end
+
+    -- Debug visualization: Draw the vehicle's bounding box
+    -- if g_currentMission and g_currentMission.terrainRootNode then
+    --     local y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, x, 0, z) + 1.0 -- 1m above ground
+    --     local halfSizeX = width / 2
+    --     local halfSizeY = 1.0                                                                 -- Visual height (half of 2m)
+    --     local halfSizeZ = length / 2
+
+    --     DebugUtil.drawOverlapBox(x, y, z, 0, rotY, 0, halfSizeX, halfSizeY, halfSizeZ, 1, 0, 0) -- Red box
+    -- end
 end
 
 ---
@@ -459,7 +470,7 @@ function GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
     local maxX = math.max(sx, wx, hx)
     local minZ = math.min(sz, wz, hz)
     local maxZ = math.max(sz, wz, hz)
-    
+
     local areaWidth = maxX - minX
     local areaHeight = maxZ - minZ
 
@@ -534,17 +545,17 @@ function GridFeedingZones:update(dt)
     for i = #toActivate, 1, -1 do
         table.remove(self.pendingFeedingCells, toActivate[i])
     end
-    
+
     -- Clean up expired recently eaten cells (unused for 60 seconds)
     local expireTime = currentTime - GridFeedingZones.RECENTLY_EATEN_EXPIRE_TIME
     local toRemove = {}
-    
+
     for i, recentCell in ipairs(self.recentlyEatenCells) do
         if recentCell.timestamp < expireTime then
             table.insert(toRemove, i)
         end
     end
-    
+
     -- Remove expired recently eaten cells (iterate backwards to avoid index issues)
     for i = #toRemove, 1, -1 do
         table.remove(self.recentlyEatenCells, toRemove[i])

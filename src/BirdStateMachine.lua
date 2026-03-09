@@ -263,13 +263,22 @@ function BirdStateMachine:enterDivingState()
 end
 
 function BirdStateMachine:updateDivingState(dt)
-    -- Check height above ground and switch to hoverDown animation when close
+    -- Check distance to target and switch to hover animation when close
     local currentX, currentY, currentZ = self.bird:getCurrentPosition()
     local terrainY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, currentX, 0, currentZ)
     local heightAboveGround = currentY - terrainY
 
-    -- Switch to hover animation when within 2 meters of ground
-    if heightAboveGround < 2.0 and self.bird.currentAnimName ~= SimpleBirdDirect.ANIM_HOVER then
+    -- Calculate distance to target (3D distance)
+    local distanceToTarget = nil
+    if self.bird.hasTarget then
+        local dx = self.bird.targetX - currentX
+        local dy = self.bird.targetY - currentY
+        local dz = self.bird.targetZ - currentZ
+        distanceToTarget = math.sqrt(dx * dx + dy * dy + dz * dz)
+    end
+
+    -- Switch to hover animation when within 2 meters of target
+    if distanceToTarget and distanceToTarget < 2.0 and self.bird.currentAnimName ~= SimpleBirdDirect.ANIM_HOVER then
         if self.bird.setAnimationByName then
             self.bird:setAnimationByName(SimpleBirdDirect.ANIM_HOVER)
         end
@@ -289,7 +298,7 @@ function BirdStateMachine:updateDivingState(dt)
 
     -- Continuously enforce level forward-facing rotation during hover landing phase
     -- This overrides SimpleBirdDirect's automatic movement-based rotation
-    if heightAboveGround < 2.0 and self.stateData.landingYaw and self.bird.sceneNode then
+    if distanceToTarget and distanceToTarget < 2.0 and self.stateData.landingYaw and self.bird.sceneNode then
         -- Force level approach: pitch=0, roll=0, yaw=direction to target
         setRotation(self.bird.sceneNode, 0, self.stateData.landingYaw, 0)
     end
