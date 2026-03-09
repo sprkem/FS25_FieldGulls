@@ -12,6 +12,8 @@ PlowExtension = {}
 -- @param dt: Delta time
 ---
 function PlowExtension:processPlowArea(superFunc, workArea, dt)
+    if g_currentMission:getIsServer() then return superFunc(self, workArea, dt) end
+
     local r1, r2 = superFunc(self, workArea, dt)
 
     if g_gridFeedingZones then
@@ -37,6 +39,13 @@ end
 -- @param dt: Delta time in milliseconds
 ---
 function PlowExtension:onEndWorkAreaProcessing(superFunc, dt)
+    if g_currentMission:getIsServer() then
+        if superFunc ~= nil then
+            superFunc(self, dt)
+        end
+        return
+    end
+
     if superFunc ~= nil then
         superFunc(self, dt)
     end

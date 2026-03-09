@@ -10,6 +10,8 @@ BirdManager.activeFlockManagers = {}
 -- Initialize the bird manager
 ---
 function BirdManager:loadMap()
+    if g_currentMission:getIsServer() then return end
+
     local birdConfig = BirdConfig.loadConfig()
     if birdConfig and birdConfig.filename then
         g_i3DManager:loadSharedI3DFileAsync(
@@ -35,6 +37,8 @@ end
 -- @param dt: Delta time in milliseconds
 ---
 function BirdManager:update(dt)
+    if g_currentMission:getIsServer() then return end
+
     if g_gridFeedingZones then
         g_gridFeedingZones:update(dt)
     end

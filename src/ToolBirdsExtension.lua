@@ -11,6 +11,8 @@ ToolBirdsExtension = {}
 -- @param workAreaType: The WorkAreaType enum value for this tool
 ---
 function ToolBirdsExtension:initialize(vehicle, workAreaType)
+    if g_currentMission:getIsServer() then return end
+
     if not vehicle or not workAreaType then
         return
     end
@@ -31,6 +33,8 @@ end
 -- @param isCurrentlyWorking: Boolean indicating if the tool is currently working
 ---
 function ToolBirdsExtension:onUpdate(vehicle, dt, isCurrentlyWorking)
+    if g_currentMission:getIsServer() then return end
+
     if not vehicle.toolBirdsData or not vehicle.toolBirdsData.initialized then
         return
     end
@@ -59,6 +63,8 @@ end
 -- @param vehicle: The vehicle with tool
 ---
 function ToolBirdsExtension:activateFlockManager(vehicle)
+    if g_currentMission:getIsServer() then return end
+
     local data = vehicle.toolBirdsData
 
     if not data then
