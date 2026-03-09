@@ -6,6 +6,7 @@
   </Asset>
 
   <Files>
+    <File fileId="2" filename="$data/shared/default_normal.dds"/>
     <File fileId="1" filename="seagull_diffuse.dds"/>
   </Files>
 
@@ -13,8 +14,10 @@
   <Materials>
     <Material name="Mat_Seagull" materialId="5">
       <Texture fileId="1"/>
+      <Normalmap fileId="2"/>
     </Material>
   </Materials>
+
 
 
   <Shapes externalShapesFile="SeagullBigScale.i3d.shapes">
