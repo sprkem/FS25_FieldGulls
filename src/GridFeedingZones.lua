@@ -69,6 +69,9 @@ function GridFeedingZones.new()
     -- Array of { gridX, gridZ, timestamp, releaseTime }
     self.pendingFeedingCells = {}
 
+    -- FieldState instance for checking ground type at positions
+    self.fieldState = FieldState.new()
+
     return self
 end
 
@@ -116,6 +119,12 @@ function GridFeedingZones:addCellImmediate(gridX, gridZ)
 
     -- Check if cell already exists
     if self.cells[key] then
+        return
+    end
+
+    -- Check ground type at this position - only add cells on valid fields
+    self.fieldState:update(gridX, gridZ)
+    if self.fieldState.groundType == FieldGroundType.NONE then
         return
     end
 
