@@ -597,6 +597,31 @@ function BirdStateMachine:requestDespawn()
 end
 
 ---
+-- Request the bird to flee from a vehicle (e.g. a vehicle drove over its feeding spot).
+-- If the bird is on the ground (FEEDING_GROUND) or diving (DIVING), it immediately
+-- transitions to FEEDING_UP. If it had a dive target, that cell is re-added to the
+-- available pool so another bird can claim it later.
+---
+function BirdStateMachine:requestFlee()
+    if self.currentState == BirdStateMachine.STATE_DESPAWNING then
+        return -- Don't interrupt despawning
+    end
+
+    -- Re-add the bird's dive target cell to the feeding pool if one exists
+    if self.bird and self.bird.hasTarget and g_gridFeedingZones then
+        local targetX = self.bird.targetX
+        local targetZ = self.bird.targetZ
+        if targetX and targetZ then
+            local gridX, gridZ = GridFeedingZones.getGridPosition(targetX, targetZ)
+            g_gridFeedingZones:addCellImmediate(gridX, gridZ)
+        end
+    end
+
+    -- Transition to flying up
+    self:setState(BirdStateMachine.STATE_FEEDING_UP)
+end
+
+---
 -- Check if bird is in despawning state
 -- @return boolean: True if despawning
 ---
