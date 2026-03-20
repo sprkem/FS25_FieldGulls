@@ -379,14 +379,17 @@ function SimpleBirdDirect:update(dt)
             if dx ~= 0 or dz ~= 0 then
                 local rotY = math.atan2(dx, dz)
                 local pitch = 0
-                
-                -- Only allow pitch when moving downward or level
+
+                -- Only allow pitch when moving downward or level, capped for natural glide look
                 if dy <= 0 then
-                    -- Add pitch based on vertical component
                     local horizontalLength = math.sqrt(dx * dx + dz * dz)
                     pitch = -math.atan2(dy, horizontalLength)
+                    local maxPitch = math.rad(30)
+                    if pitch > maxPitch then
+                        pitch = maxPitch
+                    end
                 end
-                
+
                 setRotation(self.sceneNode, pitch, rotY, 0)
             end
         end
@@ -465,11 +468,15 @@ function SimpleBirdDirect:update(dt)
 
             local rotY = math.atan2(moveDX, moveDZ)
             local pitch = 0
-            
-            -- Only allow pitch when moving downward or level
+
+            -- Only allow pitch when moving downward or level, capped for natural glide look
             if moveDY <= 0 then
                 local horizontalLength = math.sqrt(moveDX * moveDX + moveDZ * moveDZ)
                 pitch = -math.atan2(moveDY, horizontalLength)
+                local maxPitch = math.rad(30)
+                if pitch > maxPitch then
+                    pitch = maxPitch
+                end
             end
             
             setRotation(self.sceneNode, pitch, rotY, 0)

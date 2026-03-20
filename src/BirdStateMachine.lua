@@ -40,8 +40,9 @@ function BirdStateMachine.new(bird)
         searchingHeight = 4.5,         -- Height to fly at when searching (10-20m)
         searchingDistance = 15.0,      -- Distance between search points (10-20m)
         searchingCheckInterval = 3000, -- Check for cells every 3 seconds
-        diveSpeed = 5.0,               -- Speed when diving to ground (m/s)
+        diveSpeed = 4.5,               -- Speed when diving to ground (m/s)
         slowLandingSpeed = 3.0,        -- Speed during hover landing approach (m/s)
+        searchingSpeed = 6.0,          -- Speed when searching for cells (m/s)
     }
 
     -- Enter the initial state to trigger behavior
@@ -505,7 +506,7 @@ function BirdStateMachine:enterSearchingState()
     local targetHeight = self.feedingConfig.searchingHeight + math.random() * 2
     local targetY = targetTerrainY + targetHeight
 
-    self.bird:moveToCurved(targetX, targetY, targetZ, 8.0, 0.4)
+    self.bird:moveToCurved(targetX, targetY, targetZ, self.feedingConfig.searchingSpeed, 0.4)
 end
 
 function BirdStateMachine:updateSearchingState(dt)
@@ -522,7 +523,7 @@ function BirdStateMachine:updateSearchingState(dt)
         local targetHeight = self.feedingConfig.searchingHeight + math.random() * 2
         local targetY = targetTerrainY + targetHeight
 
-        self.bird:moveToCurved(targetX, targetY, targetZ, 8.0, 0.4)
+        self.bird:moveToCurved(targetX, targetY, targetZ, self.feedingConfig.searchingSpeed, 0.4)
     end
 
     -- Periodically check if valid feeding targets are now available
