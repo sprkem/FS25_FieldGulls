@@ -122,8 +122,8 @@
         </TransformGroup>
       </TransformGroup>
     </TransformGroup>
-    <Shape name="SeagullLowPoly" clipDistance="1000" shapeId="1" visibility="false" nodeId="71" castsShadows="true" receiveShadows="true" skinBindNodeIds="9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 53 54 55 56 57 58 59 60 61 62 64 65 66 67 68 69 70" materialIds="5"/>
-    <Shape name="SeagullMiddlePoly" clipDistance="1000" shapeId="2" nodeId="72" castsShadows="true" receiveShadows="true" skinBindNodeIds="9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 53 54 55 56 57 58 59 60 61 62 64 65 66 67 68 69 70" materialIds="5"/>
+    <Shape name="SeagullLowPoly" clipDistance="500" shapeId="1" visibility="false" nodeId="71" castsShadows="true" receiveShadows="true" skinBindNodeIds="9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 53 54 55 56 57 58 59 60 61 62 64 65 66 67 68 69 70" materialIds="5"/>
+    <Shape name="SeagullMiddlePoly" clipDistance="500" shapeId="2" nodeId="72" castsShadows="true" receiveShadows="true" skinBindNodeIds="9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 53 54 55 56 57 58 59 60 61 62 64 65 66 67 68 69 70" materialIds="5"/>
   </Scene>
 
 

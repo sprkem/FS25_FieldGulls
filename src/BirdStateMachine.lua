@@ -37,7 +37,7 @@ function BirdStateMachine.new(bird)
         minGroundHeight = 0.01,        -- Minimum height above ground
         maxGroundHeight = 0.02,        -- Maximum height above ground when feeding
         arcCurvature = 1.5,            -- Curvature for the arcing path (higher = more arc)
-        searchingHeight = 6.0,         -- Height to fly at when searching (10-20m)
+        searchingHeight = 4.5,         -- Height to fly at when searching (10-20m)
         searchingDistance = 15.0,      -- Distance between search points (10-20m)
         searchingCheckInterval = 3000, -- Check for cells every 3 seconds
         diveSpeed = 5.0,               -- Speed when diving to ground (m/s)

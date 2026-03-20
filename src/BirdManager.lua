@@ -25,20 +25,20 @@ function BirdManager:loadMap()
     if not g_currentMission:getIsClient() then return end
 
     local birdConfig = BirdConfig.loadConfig()
-    if birdConfig and birdConfig.filename then
-        g_i3DManager:loadSharedI3DFileAsync(
-            birdConfig.filename,
-            false, -- callOnCreate
-            false, -- addToPhysics
-            function(i3dNode, failedReason, args)
-                if failedReason ~= 0 then
-                    print("[BirdManager] Warning: Failed to preload bird i3d model")
-                end
-            end,
-            nil,
-            nil
-        )
-    end
+    -- if birdConfig and birdConfig.filename then
+    --     g_i3DManager:loadSharedI3DFileAsync(
+    --         birdConfig.filename,
+    --         false, -- callOnCreate
+    --         false, -- addToPhysics
+    --         function(i3dNode, failedReason, args)
+    --             if failedReason ~= 0 then
+    --                 print("[BirdManager] Warning: Failed to preload bird i3d model")
+    --             end
+    --         end,
+    --         nil,
+    --         nil
+    --     )
+    -- end
 
     -- Initialize global grid feeding zones system
     g_gridFeedingZones = GridFeedingZones.new()
