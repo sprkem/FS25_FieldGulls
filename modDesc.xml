@@ -22,6 +22,7 @@ Changelog:
 1.0.0.1:
 - Gulls will now only feed on ground worked by their associated tool, avoiding a weird effect when multiple tools are running.
 - Added a setting to limit the max number of tools that can have gulls, to aid performance for some players.
+- Add Polish translation thanks to KITT3000.
 ]]>
         </en>
         <de><![CDATA[Feldmöwen
@@ -37,6 +38,7 @@ GitHub: https://github.com/sprkem/FS25_FieldGulls
 1.0.0.1:
 - Möwen fressen jetzt nur noch auf Boden, der von ihrem zugehörigen Werkzeug bearbeitet wurde, um einen seltsamen Effekt bei mehreren gleichzeitig laufenden Werkzeugen zu vermeiden.
 - Eine Einstellung wurde hinzugefügt, um die maximale Anzahl von Werkzeugen mit Möwen zu begrenzen, um die Leistung für einige Spieler zu verbessern.
+- Polnische Übersetzung hinzugefügt, dank KITT3000.
 ]]>
         </de>
         <fr><![CDATA[Mouettes de Champ
@@ -52,6 +54,7 @@ Journal des modifications :
 1.0.0.1 :
 - Les mouettes ne se nourrissent désormais que sur le sol travaillé par leur outil associé, évitant un effet étrange lorsque plusieurs outils fonctionnent en même temps.
 - Ajout d'un paramètre pour limiter le nombre maximum d'outils pouvant avoir des mouettes, afin d'améliorer les performances pour certains joueurs.
+- Ajout de la traduction polonaise grâce à KITT3000.
 ]]>
         </fr>
     </description>

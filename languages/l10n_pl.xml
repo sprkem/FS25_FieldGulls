@@ -12,5 +12,8 @@
 		<text name="setting_birds_maxBirds_tooltip" text="Maksymalna liczba ptaków, które mogą się pojawić. Każde stado będzie liczyło od 50% do 100% tej wartości."/>
 		<text name="setting_birds_chanceOfBirds" text="Pojawianie się ptaków"/>
 		<text name="setting_birds_chanceOfBirds_tooltip" text="Prawdopodobieństwo pojawienia się ptaków podczas pracy. Jeśli ptaki się nie pojawią, nie pojawią się ponownie przez 1 godzinę."/>
+		<text name="setting_birds_maxActiveTools" text="Maks. aktywnych narzędzi"/>
+		<text name="setting_birds_maxActiveTools_tooltip" text="Maksymalna liczba narzędzi, które mogą jednocześnie mieć stada ptaków. Dodatkowe narzędzia powyżej tego limitu nie będą przyciągać ptaków."/>
+		<text name="setting_birds_unlimited" text="Bez limitu"/>
 	</texts>
 </l10n>
