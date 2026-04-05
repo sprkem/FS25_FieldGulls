@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<l10n>
+	<translationContributors>Ziuta</translationContributors>
+	<texts>
+		<!-- Settings Section -->
+		<text name="setting_birds_section" text="Mewy polne"/>
+		
+		<!-- Settings -->
+		<text name="setting_birds_birdSoundVolume" text="Głośność ptaków"/>
+		<text name="setting_birds_birdSoundVolume_tooltip" text="Dostosuj głośność odgłosów ptaków. Ustaw wartość na 0%, aby wyłączyć dźwięki."/>
+		<text name="setting_birds_maxBirds" text="Maksymalna liczba ptaków"/>
+		<text name="setting_birds_maxBirds_tooltip" text="Maksymalna liczba ptaków, które mogą się pojawić. Każde stado będzie liczyło od 50% do 100% tej wartości."/>
+		<text name="setting_birds_chanceOfBirds" text="Pojawianie się ptaków"/>
+		<text name="setting_birds_chanceOfBirds_tooltip" text="Prawdopodobieństwo pojawienia się ptaków podczas pracy. Jeśli ptaki się nie pojawią, nie pojawią się ponownie przez 1 godzinę."/>
+	</texts>
+</l10n>
