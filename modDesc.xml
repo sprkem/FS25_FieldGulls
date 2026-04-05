@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" standalone="no" ?>
 <modDesc descVersion="107">
     <author>Ozz</author>
-    <version>1.0.0.0</version>
+    <version>1.0.0.1</version>
     <iconFilename>icon_FieldGulls.dds</iconFilename>
     <title>
         <en>Field Gulls</en>
@@ -16,6 +16,12 @@ A mod to add gulls that follow you and eat from the ground when plowing, cultiva
 Customize the number of gulls that can spawn, the chance of them appearing, and the volume of their sounds in the mod settings.
 
 GitHub: https://github.com/sprkem/FS25_FieldGulls
+
+Changelog:
+
+1.0.0.1:
+- Gulls will now only feed on ground worked by their associated tool, avoiding a weird effect when multiple tools are running.
+- Added a setting to limit the max number of tools that can have gulls, to aid performance for some players.
 ]]>
         </en>
         <de><![CDATA[Feldmöwen
@@ -25,6 +31,12 @@ Ein Mod, der Möwen hinzufügt, die Ihnen folgen und vom Boden fressen, wenn Sie
 Passen Sie die Anzahl der Möwen, die spawnen können, die Chance ihres Erscheinens und die Lautstärke ihrer Geräusche in den Mod-Einstellungen an.
 
 GitHub: https://github.com/sprkem/FS25_FieldGulls
+
+Änderungsprotokoll:
+
+1.0.0.1:
+- Möwen fressen jetzt nur noch auf Boden, der von ihrem zugehörigen Werkzeug bearbeitet wurde, um einen seltsamen Effekt bei mehreren gleichzeitig laufenden Werkzeugen zu vermeiden.
+- Eine Einstellung wurde hinzugefügt, um die maximale Anzahl von Werkzeugen mit Möwen zu begrenzen, um die Leistung für einige Spieler zu verbessern.
 ]]>
         </de>
         <fr><![CDATA[Mouettes de Champ
@@ -34,6 +46,12 @@ Un mod pour ajouter des mouettes qui vous suivent et se nourrissent du sol lorsq
 Personnalisez le nombre de mouettes qui peuvent apparaître, la chance de leur apparition et le volume de leurs sons dans les paramètres du mod.
 
 GitHub: https://github.com/sprkem/FS25_FieldGulls
+
+Journal des modifications :
+
+1.0.0.1 :
+- Les mouettes ne se nourrissent désormais que sur le sol travaillé par leur outil associé, évitant un effet étrange lorsque plusieurs outils fonctionnent en même temps.
+- Ajout d'un paramètre pour limiter le nombre maximum d'outils pouvant avoir des mouettes, afin d'améliorer les performances pour certains joueurs.
 ]]>
         </fr>
     </description>
