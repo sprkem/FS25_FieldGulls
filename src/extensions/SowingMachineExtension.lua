@@ -54,9 +54,10 @@ function SowingMachineExtension:onEndWorkAreaProcessing(superFunc, dt, hasProces
                     -- Get affected grid cells
                     local cells = GridFeedingZones.getAffectedGridCells(sx, sz, wx, wz, hx, hz)
 
-                    -- Add cells to global grid system
+                    -- Add cells to global grid system, tagged with this tool's ID
+                    local toolId = self.toolBirdsData and self.toolBirdsData.toolId
                     for _, cell in ipairs(cells) do
-                        g_gridFeedingZones:addCellImmediate(cell.gridX, cell.gridZ)
+                        g_gridFeedingZones:addCellImmediate(cell.gridX, cell.gridZ, toolId)
                     end
                 end
             end

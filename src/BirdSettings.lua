@@ -9,7 +9,8 @@ BirdSettings.CONTROLS = {}
 BirdSettings.menuItems = {
     'birdSoundVolume',
     'maxBirds',
-    'chanceOfBirds'
+    'chanceOfBirds',
+    'maxActiveTools'
 }
 
 -- SETTINGS DEFINITIONS
@@ -36,11 +37,19 @@ BirdSettings.SETTINGS.chanceOfBirds = {
     ['strings'] = { "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%" }
 }
 
+BirdSettings.SETTINGS.maxActiveTools = {
+    ['default'] = 2,
+    ['serverOnly'] = false,
+    ['values'] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0 },
+    ['strings'] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Unlimited" }
+}
+
 -- Current settings (stored locally, no network sync needed)
 BirdSettings.settings = {
     birdSoundVolume = 1.0,
     maxBirds = 80,
-    chanceOfBirds = 0.7
+    chanceOfBirds = 0.7,
+    maxActiveTools = 2
 }
 
 function BirdSettings.getStateIndex(id, value)
@@ -245,6 +254,11 @@ function BirdSettings.addSettingsToMenu()
     sectionTitle.focusId = FocusManager:serveAutoFocusId()
     table.insert(settingsPage.controlsList, sectionTitle)
     BirdSettings.CONTROLS[sectionTitle.name] = sectionTitle
+
+    -- Resolve l10n strings that need translation (must happen after g_i18n is available)
+    local unlimitedText = g_i18n:getText("setting_birds_unlimited")
+    local maxToolsStrings = BirdSettings.SETTINGS.maxActiveTools.strings
+    maxToolsStrings[#maxToolsStrings] = unlimitedText
 
     for _, id in pairs(BirdSettings.menuItems) do
         BirdSettings.addMultiMenuOption(id)

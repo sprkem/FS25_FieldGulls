@@ -43,7 +43,7 @@ function GridFeedingZones.new()
     local self = setmetatable({}, GridFeedingZones_mt)
 
     -- Store cells as a flat table with grid keys
-    -- Each entry: { gridX, gridZ, timestamp, key }
+    -- Each entry: { gridX, gridZ, timestamp, key, toolId }
     self.cells = {}
 
     -- Index for fast spatial queries
@@ -55,11 +55,11 @@ function GridFeedingZones.new()
     self.cellsByTimestamp = {}
 
     -- Buffered cells waiting to move to RECENTLY_EATEN_CELLS
-    -- Array of { gridX, gridZ, bufferTime }
+    -- Array of { gridX, gridZ, bufferTime, toolId }
     self.bufferedCells = {}
 
     -- Recently eaten cells that can be reused when no fresh cells available
-    -- Array of { gridX, gridZ, timestamp }
+    -- Array of { gridX, gridZ, timestamp, toolId }
     self.recentlyEatenCells = {}
 
     -- FieldState instance for checking ground type at positions
@@ -69,23 +69,38 @@ function GridFeedingZones.new()
     -- Structure: occupiedCells[vehicleId] = { [gridKey] = true }
     self.occupiedCells = {}
 
+    -- Per-tool cell counts for fast lookups
+    -- Structure: toolCellCounts[toolId] = number
+    self.toolCellCounts = {}
+
     return self
 end
 
 ---
 -- Add a cell to the feeding zones
 -- @param gridX, gridZ: Grid position
+-- @param toolId: The tool that created this cell (nil allowed for backward compat)
 ---
-function GridFeedingZones:addCellImmediate(gridX, gridZ)
+function GridFeedingZones:addCellImmediate(gridX, gridZ, toolId)
     local key = GridFeedingZones.getGridKey(gridX, gridZ)
 
     -- Check if cell already exists - if so, refresh it
     if self.cells[key] then
         local cell = self.cells[key]
-        
+
         -- Update timestamp to keep it fresh
         cell.timestamp = g_time
-        
+
+        -- Update toolId if a new one is provided (adopts the cell to the active tool)
+        if toolId and cell.toolId ~= toolId then
+            local oldToolId = cell.toolId
+            if oldToolId and self.toolCellCounts[oldToolId] then
+                self.toolCellCounts[oldToolId] = self.toolCellCounts[oldToolId] - 1
+            end
+            cell.toolId = toolId
+            self.toolCellCounts[toolId] = (self.toolCellCounts[toolId] or 0) + 1
+        end
+
         -- Move to front of timestamp list (newest first)
         for i, orderedCell in ipairs(self.cellsByTimestamp) do
             if orderedCell == cell then
@@ -109,10 +124,16 @@ function GridFeedingZones:addCellImmediate(gridX, gridZ)
         gridX = gridX,
         gridZ = gridZ,
         timestamp = g_time,
-        key = key
+        key = key,
+        toolId = toolId
     }
 
     self.cells[key] = cell
+
+    -- Track per-tool cell count
+    if toolId then
+        self.toolCellCounts[toolId] = (self.toolCellCounts[toolId] or 0) + 1
+    end
 
     -- Add to spatial index
     if not self.spatialIndex[gridX] then
@@ -133,6 +154,15 @@ function GridFeedingZones:removeCell(gridX, gridZ)
 
     if self.cells[key] then
         local cell = self.cells[key]
+
+        -- Decrement per-tool count
+        if cell.toolId and self.toolCellCounts[cell.toolId] then
+            self.toolCellCounts[cell.toolId] = self.toolCellCounts[cell.toolId] - 1
+            if self.toolCellCounts[cell.toolId] <= 0 then
+                self.toolCellCounts[cell.toolId] = nil
+            end
+        end
+
         self.cells[key] = nil
 
         -- Remove from spatial index
@@ -195,10 +225,21 @@ end
 
 ---
 -- Get the position of the active work area (newest cell) without removing it
+-- @param toolId: If provided, only consider cells from this tool
 -- @return x, z: Center position of newest cell, or nil if no cells available
 ---
-function GridFeedingZones:getWorkAreaPosition()
+function GridFeedingZones:getWorkAreaPosition(toolId)
     if #self.cellsByTimestamp == 0 then
+        return nil, nil
+    end
+
+    if toolId then
+        -- Find newest cell belonging to this tool
+        for _, cell in ipairs(self.cellsByTimestamp) do
+            if cell.toolId == toolId then
+                return cell.gridX, cell.gridZ
+            end
+        end
         return nil, nil
     end
 
@@ -212,9 +253,10 @@ end
 -- @param vehicleX, vehicleZ: Vehicle center position
 -- @param isMoving: Boolean indicating if the vehicle/plow is currently moving
 -- @param workingWidth: Working width of the tool (meters)
+-- @param toolId: If provided, only consider cells from this tool
 -- @return targetX, targetZ: Random position in selected cell, or nil if no cells available
 ---
-function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ, isMoving, workingWidth)
+function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ, isMoving, workingWidth, toolId)
     -- No cells available
     if #self.cellsByTimestamp == 0 then
         return nil, nil
@@ -225,17 +267,19 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
     -- 80% chance: Pick randomly from top most recent cells
     -- 20% chance: Pick weighted by inverse distance
     local useRecentCells = math.random() < 0.80
-    
-    if useRecentCells then
-        -- Pick randomly from recent cells, excluding occupied cells
-        -- Check up to MAX_RECENT_CELLS (40) to find cells that have moved out from under vehicle
-        local validCells = {}
-        local endIndex = math.min(GridFeedingZones.MAX_RECENT_CELLS, #self.cellsByTimestamp)
 
-        for i = 1, endIndex do
+    if useRecentCells then
+        -- Pick randomly from recent cells, excluding occupied cells and filtering by toolId
+        -- Scan through timestamp list collecting up to MAX_RECENT_CELLS matching cells
+        local validCells = {}
+
+        for i = 1, #self.cellsByTimestamp do
             local cell = self.cellsByTimestamp[i]
-            if not self:isCellOccupied(cell.gridX, cell.gridZ) then
+            if (not toolId or cell.toolId == toolId) and not self:isCellOccupied(cell.gridX, cell.gridZ) then
                 table.insert(validCells, cell)
+                if #validCells >= GridFeedingZones.MAX_RECENT_CELLS then
+                    break
+                end
             end
         end
 
@@ -253,8 +297,8 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
         for i = 1, #self.cellsByTimestamp do
             local cell = self.cellsByTimestamp[i]
 
-            -- Skip occupied cells
-            if not self:isCellOccupied(cell.gridX, cell.gridZ) then
+            -- Skip cells from other tools, skip occupied cells
+            if (not toolId or cell.toolId == toolId) and not self:isCellOccupied(cell.gridX, cell.gridZ) then
                 -- Calculate weight based on distance to bird
                 local distance = MathUtil.vector2Length(cell.gridX - birdX, cell.gridZ - birdZ)
 
@@ -293,23 +337,33 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
     if not selectedCell then
         -- No valid fresh cells - try RECENTLY_EATEN_CELLS as fallback
         if #self.recentlyEatenCells > 0 then
-            -- Pick randomly from recently eaten cells
-            local randomIndex = math.random(1, #self.recentlyEatenCells)
-            local recentCell = self.recentlyEatenCells[randomIndex]
+            -- Collect matching recently eaten cells
+            local matchingIndices = {}
+            for i, recentCell in ipairs(self.recentlyEatenCells) do
+                if not toolId or recentCell.toolId == toolId then
+                    table.insert(matchingIndices, i)
+                end
+            end
 
-            -- Remove from recently eaten cells
-            table.remove(self.recentlyEatenCells, randomIndex)
+            if #matchingIndices > 0 then
+                local picked = matchingIndices[math.random(1, #matchingIndices)]
+                local recentCell = self.recentlyEatenCells[picked]
 
-            -- Add back to buffer to cycle through the system again
-            table.insert(self.bufferedCells, {
-                gridX = recentCell.gridX,
-                gridZ = recentCell.gridZ,
-                bufferTime = g_time
-            })
+                -- Remove from recently eaten cells
+                table.remove(self.recentlyEatenCells, picked)
 
-            -- Get random position within the cell
-            local targetX, targetZ = GridFeedingZones.getRandomPositionInCell(recentCell.gridX, recentCell.gridZ)
-            return targetX, targetZ
+                -- Add back to buffer to cycle through the system again
+                table.insert(self.bufferedCells, {
+                    gridX = recentCell.gridX,
+                    gridZ = recentCell.gridZ,
+                    bufferTime = g_time,
+                    toolId = recentCell.toolId
+                })
+
+                -- Get random position within the cell
+                local targetX, targetZ = GridFeedingZones.getRandomPositionInCell(recentCell.gridX, recentCell.gridZ)
+                return targetX, targetZ
+            end
         end
 
         return nil, nil
@@ -321,11 +375,12 @@ function GridFeedingZones:requestFeedingTarget(birdX, birdZ, vehicleX, vehicleZ,
     -- Remove the selected cell
     self:removeCell(selectedCell.gridX, selectedCell.gridZ)
 
-    -- Buffer the cell for 10 seconds before moving to RECENTLY_EATEN_CELLS
+    -- Buffer the cell before moving to RECENTLY_EATEN_CELLS
     table.insert(self.bufferedCells, {
         gridX = selectedCell.gridX,
         gridZ = selectedCell.gridZ,
-        bufferTime = g_time
+        bufferTime = g_time,
+        toolId = selectedCell.toolId
     })
 
     return targetX, targetZ
@@ -495,7 +550,8 @@ function GridFeedingZones:update(dt)
             table.insert(self.recentlyEatenCells, {
                 gridX = bufferedCell.gridX,
                 gridZ = bufferedCell.gridZ,
-                timestamp = currentTime
+                timestamp = currentTime,
+                toolId = bufferedCell.toolId
             })
             table.insert(toMove, i)
         end
@@ -523,10 +579,14 @@ function GridFeedingZones:update(dt)
 end
 
 ---
--- Get total number of cells
+-- Get total number of cells, optionally filtered by toolId
+-- @param toolId: If provided, return count for this tool only
 -- @return number: Total cells
 ---
-function GridFeedingZones:getCellCount()
+function GridFeedingZones:getCellCount(toolId)
+    if toolId then
+        return self.toolCellCounts[toolId] or 0
+    end
     local count = 0
     for _ in pairs(self.cells) do
         count = count + 1
@@ -543,4 +603,5 @@ function GridFeedingZones:clear()
     self.bufferedCells = {}
     self.recentlyEatenCells = {}
     self.occupiedCells = {}
+    self.toolCellCounts = {}
 end

@@ -12,5 +12,8 @@
 		<text name="setting_birds_maxBirds_tooltip" text="Nombre maximum d'oiseaux pouvant apparaître. Chaque groupe apparaîtra entre 50% et 100% de cette valeur."/>
 		<text name="setting_birds_chanceOfBirds" text="Chance d'oiseaux"/>
 		<text name="setting_birds_chanceOfBirds_tooltip" text="Probabilité que des oiseaux apparaissent lors du travail. Si aucun oiseau n'apparaît, ils ne réapparaîtront pas pendant 1 heure."/>
+		<text name="setting_birds_maxActiveTools" text="Outils actifs maximum"/>
+		<text name="setting_birds_maxActiveTools_tooltip" text="Nombre maximum d'outils pouvant avoir des groupes d'oiseaux en même temps. Les outils supplémentaires au-delà de cette limite n'attireront pas d'oiseaux."/>
+		<text name="setting_birds_unlimited" text="Illimité"/>
 	</texts>
 </l10n>

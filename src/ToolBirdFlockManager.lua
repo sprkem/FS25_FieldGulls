@@ -250,6 +250,11 @@ function ToolBirdFlockManager:activate()
     if self.isDespawning then
         self:cancelDespawnTimer()
 
+        -- Check max active tools limit before re-activating
+        if BirdManager and not BirdManager:canActivateFlock(self.toolId) then
+            return false
+        end
+
         -- Set new random target if we don't have one (e.g., after full despawn)
         if not self.targetNumberOfBirds then
             if not self:determineBirdSpawn() then
@@ -279,6 +284,11 @@ function ToolBirdFlockManager:activate()
     end
 
     if self.isActive then
+        return false
+    end
+
+    -- Check max active tools limit before spawning a new flock
+    if BirdManager and not BirdManager:canActivateFlock(self.toolId) then
         return false
     end
 
@@ -425,8 +435,8 @@ function ToolBirdFlockManager:spawnOneBird()
         return false
     end
 
-    -- Check if there are any feeding cells available before spawning
-    if not g_gridFeedingZones or g_gridFeedingZones:getCellCount() == 0 then
+    -- Check if there are any feeding cells available for this tool before spawning
+    if not g_gridFeedingZones or g_gridFeedingZones:getCellCount(self.toolId) == 0 then
         return false
     end
 

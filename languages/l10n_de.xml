@@ -12,5 +12,8 @@
 		<text name="setting_birds_maxBirds_tooltip" text="Maximale Anzahl der Vögel, die spawnen können. Jeder Schwarm wird zwischen 50-100% dieses Wertes spawnen."/>
 		<text name="setting_birds_chanceOfBirds" text="Wahrscheinlichkeit der Vögel"/>
 		<text name="setting_birds_chanceOfBirds_tooltip" text="Wahrscheinlichkeit, dass Vögel beim Arbeiten erscheinen. Wenn keine Vögel erscheinen, spawnen sie 1 Stunde lang nicht."/>
+		<text name="setting_birds_maxActiveTools" text="Max. aktive Werkzeuge"/>
+		<text name="setting_birds_maxActiveTools_tooltip" text="Maximale Anzahl von Werkzeugen, die gleichzeitig Vogelschwärme haben können. Weitere Werkzeuge über diesem Limit ziehen keine Vögel an."/>
+		<text name="setting_birds_unlimited" text="Unbegrenzt"/>
 	</texts>
 </l10n>

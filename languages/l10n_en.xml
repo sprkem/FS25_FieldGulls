@@ -12,5 +12,8 @@
 		<text name="setting_birds_maxBirds_tooltip" text="Maximum number of birds that can spawn. Each flock will spawn between 50%-100% of this value."/>
 		<text name="setting_birds_chanceOfBirds" text="Chance of Birds"/>
 		<text name="setting_birds_chanceOfBirds_tooltip" text="Probability that birds will appear when working. If birds don't appear, they won't spawn again for 1 hour."/>
+		<text name="setting_birds_maxActiveTools" text="Max Active Tools"/>
+		<text name="setting_birds_maxActiveTools_tooltip" text="Maximum number of tools that can have bird flocks at the same time. Additional tools beyond this limit will not attract birds."/>
+		<text name="setting_birds_unlimited" text="Unlimited"/>
 	</texts>
 </l10n>

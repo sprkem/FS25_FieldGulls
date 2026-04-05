@@ -236,6 +236,40 @@ function BirdManager:unregisterFlockManager(toolId)
 end
 
 ---
+-- Count the number of active flocks that have spawned birds
+-- @return number: Count of active flocks with birds
+---
+function BirdManager:getActiveFlockCount()
+    local count = 0
+    for _, flockManager in pairs(self.activeFlockManagers) do
+        if flockManager and flockManager.isActive and #flockManager.spawnedBirds > 0 then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+---
+-- Check if a new flock is allowed to activate based on the maxActiveTools setting
+-- @param toolId: The toolId requesting activation (excluded from count if already registered)
+-- @return boolean: true if activation is allowed
+---
+function BirdManager:canActivateFlock(toolId)
+    local maxActiveTools = BirdSettings and BirdSettings.settings and BirdSettings.settings.maxActiveTools or 2
+    if maxActiveTools == 0 then
+        return true -- 0 = unlimited
+    end
+
+    local count = 0
+    for id, flockManager in pairs(self.activeFlockManagers) do
+        if flockManager and flockManager.isActive and #flockManager.spawnedBirds > 0 and id ~= toolId then
+            count = count + 1
+        end
+    end
+    return count < maxActiveTools
+end
+
+---
 -- Generate a unique tool ID for a new flock manager
 -- @return number: Unique tool ID
 ---

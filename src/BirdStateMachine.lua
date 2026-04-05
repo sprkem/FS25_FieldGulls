@@ -164,9 +164,10 @@ function BirdStateMachine:enterApproachingPlowState()
     local targetX = currentX
     local targetZ = currentZ
 
-    -- Get work area position from grid system
-    if g_gridFeedingZones and g_gridFeedingZones:getCellCount() > 0 then
-        local workAreaX, workAreaZ = g_gridFeedingZones:getWorkAreaPosition()
+    -- Get work area position from grid system (filtered to this tool's cells)
+    local toolId = self.bird.manager.toolId
+    if g_gridFeedingZones and g_gridFeedingZones:getCellCount(toolId) > 0 then
+        local workAreaX, workAreaZ = g_gridFeedingZones:getWorkAreaPosition(toolId)
         if workAreaX then
             targetX = workAreaX
             targetZ = workAreaZ
@@ -191,15 +192,16 @@ function BirdStateMachine:updateApproachingPlowState(dt)
     -- Check if bird reached target altitude at work area
     if not self.bird:getIsMoving() then
         -- Try to get a feeding target immediately instead of going to SEARCHING first
-        if g_gridFeedingZones and g_gridFeedingZones:getCellCount() > 0 then
+        local toolId = self.bird.manager.toolId
+        if g_gridFeedingZones and g_gridFeedingZones:getCellCount(toolId) > 0 then
             local currentX, currentY, currentZ = self.bird:getCurrentPosition()
             local isMoving = self:isVehicleMoving()
             local vehicleX, vehicleY, vehicleZ = self:getVehiclePosition()
             local workingWidth = self.bird.manager.workingWidth
 
-            -- Try to get a valid target (this will filter by distance from tool)
+            -- Try to get a valid target (filtered to this tool's cells)
             local targetX, targetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ, vehicleX, vehicleZ,
-                isMoving, workingWidth)
+                isMoving, workingWidth, toolId)
 
             if targetX and targetZ then
                 -- Valid target available - dive immediately
@@ -229,17 +231,18 @@ function BirdStateMachine:enterDivingState()
     -- Get current position
     local currentX, currentY, currentZ = self.bird:getCurrentPosition()
 
-    -- Request a feeding target from the central grid system
+    -- Request a feeding target from the central grid system (filtered to this tool)
     local isMoving = self:isVehicleMoving()
     local vehicleX, vehicleY, vehicleZ = self:getVehiclePosition()
     local workingWidth = self.bird.manager.workingWidth
+    local toolId = self.bird.manager.toolId
 
     local targetX = currentX
     local targetZ = currentZ
 
     if g_gridFeedingZones then
         local cellTargetX, cellTargetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ, vehicleX, vehicleZ,
-            isMoving, workingWidth)
+            isMoving, workingWidth, toolId)
         if cellTargetX and cellTargetZ then
             targetX = cellTargetX
             targetZ = cellTargetZ
@@ -421,15 +424,16 @@ function BirdStateMachine:enterFeedingArcState()
 
     local currentX, currentY, currentZ = self.bird:getCurrentPosition()
 
-    -- Check if we have cells and get work area position
-    if not g_gridFeedingZones or g_gridFeedingZones:getCellCount() == 0 then
+    -- Check if we have cells and get work area position (filtered to this tool)
+    local toolId = self.bird.manager.toolId
+    if not g_gridFeedingZones or g_gridFeedingZones:getCellCount(toolId) == 0 then
         -- No cells - transition to searching state
         self:setState(BirdStateMachine.STATE_SEARCHING)
         return
     end
 
-    -- Get position of newest cell (work area center)
-    local workAreaX, workAreaZ = g_gridFeedingZones:getWorkAreaPosition()
+    -- Get position of newest cell (work area center) for this tool
+    local workAreaX, workAreaZ = g_gridFeedingZones:getWorkAreaPosition(toolId)
     if not workAreaX then
         -- Shouldn't happen but handle gracefully
         self.stateData.seekingWorkArea = false
@@ -530,7 +534,8 @@ function BirdStateMachine:updateSearchingState(dt)
     local timeSinceLastCheck = g_time - (self.stateData.lastCellCheck or 0)
     if timeSinceLastCheck > self.feedingConfig.searchingCheckInterval then
         self.stateData.lastCellCheck = g_time
-        local cellCount = g_gridFeedingZones and g_gridFeedingZones:getCellCount() or 0
+        local toolId = self.bird.manager.toolId
+        local cellCount = g_gridFeedingZones and g_gridFeedingZones:getCellCount(toolId) or 0
 
         -- Try to actually get a valid target (not just check if cells exist)
         if g_gridFeedingZones and cellCount > 0 then
@@ -538,10 +543,10 @@ function BirdStateMachine:updateSearchingState(dt)
             local isMoving = self:isVehicleMoving()
             local vehicleX, vehicleY, vehicleZ = self:getVehiclePosition()
 
-            -- Try to get a valid target (this will filter by distance from tool)
+            -- Try to get a valid target (filtered to this tool's cells)
             local workingWidth = self.bird.manager.workingWidth
             local targetX, targetZ = g_gridFeedingZones:requestFeedingTarget(currentX, currentZ, vehicleX, vehicleZ,
-                isMoving, workingWidth)
+                isMoving, workingWidth, toolId)
 
             if targetX and targetZ then
                 -- Valid target available - transition to diving state
@@ -617,7 +622,7 @@ function BirdStateMachine:requestFlee()
         local targetZ = self.bird.targetZ
         if targetX and targetZ then
             local gridX, gridZ = GridFeedingZones.getGridPosition(targetX, targetZ)
-            g_gridFeedingZones:addCellImmediate(gridX, gridZ)
+            g_gridFeedingZones:addCellImmediate(gridX, gridZ, self.bird.manager.toolId)
         end
     end
 
